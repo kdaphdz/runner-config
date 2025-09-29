@@ -32,6 +32,7 @@ function read_vars() {
 }
 
 function start_measurement() {
+    initialize_vars
     # Para start_measurement necesitamos LABEL, APPROACH, METHOD y TOOL_ARGS
     APPROACH="${3:-}"
     METHOD="${4:-}"
