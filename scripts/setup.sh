@@ -53,15 +53,16 @@ function start_measurement {
 }
 
 function end_measurement {
-    local baseline_flag="false"
-    for arg in "$@"; do
-        if [[ "$arg" == "--baseline" ]]; then
-            baseline_flag="true"
-            break
-        fi
-    done
+    # Cargar todas las variables guardadas en vars.sh
+    read_vars
+
+    if [[ -z "${LABEL:-}" ]]; then
+        echo "[ERROR] end_measurement requires LABEL to be set."
+        exit 1
+    fi
 
     if [[ ! -f "$PID_FILE" ]]; then
+        echo "[ERROR] PID file $PID_FILE not found for label $LABEL."
         exit 1
     fi
 
@@ -71,24 +72,31 @@ function end_measurement {
     pid=$(<"$PID_FILE")
     if kill "$pid" 2>/dev/null; then
         rm -f "$PID_FILE"
+        echo "[INFO] Measurement process PID=$pid stopped."
     else
         rm -f "$PID_FILE"
+        echo "[ERROR] Failed to stop measurement process PID=$pid"
         exit 1
     fi
 
     if [[ ! -f "$WATTSCI_OUTPUT_FILE" ]]; then
+        echo "[ERROR] Output file not found: $WATTSCI_OUTPUT_FILE"
         exit 1
     fi
 
+    local ORIGINAL_NAME
     ORIGINAL_NAME=$(basename "$WATTSCI_OUTPUT_FILE")
-    COMPRESSED_FILE="$OUTPUT_DIR/${ORIGINAL_NAME}.gz"
+    local COMPRESSED_FILE="$OUTPUT_DIR/${ORIGINAL_NAME}.gz"
     gzip -c "$WATTSCI_OUTPUT_FILE" > "$COMPRESSED_FILE"
+    echo "[INFO] Compressed perf output saved to: $COMPRESSED_FILE"
 
-    CHUNK_SIZE="10M"
+    local CHUNK_SIZE="10M"
     split -b "$CHUNK_SIZE" --numeric-suffixes=1 --suffix-length=3 \
           "$COMPRESSED_FILE" "${COMPRESSED_FILE}_chunk_"
+    echo "[INFO] Chunks created: ${COMPRESSED_FILE}_chunk_*"
 
-    upload_fields=(
+    # Campos para upload
+    local upload_fields=(
         -F "CI=$CI"
         -F "RUN_ID=$RUN_ID"
         -F "REF_NAME=$REF_NAME"
@@ -100,25 +108,23 @@ function end_measurement {
         -F "LABEL=$LABEL"
     )
 
-    if [[ "$baseline_flag" == "true" ]]; then
-        upload_fields+=(-F "WATTSCI_BASELINE=true")
-    else
-        upload_fields+=(-F "WATTSCI_BASELINE=false")
-    fi
-
-    session_id=""
+    local session_id=""
     for chunk in "${COMPRESSED_FILE}_chunk_"*; do
+        local resp
         resp=$(curl -s -X POST "$SERVER_URL/upload" \
             -F "chunk=@${chunk}" \
             -F "chunk_name=$(basename "$chunk")" \
             "${upload_fields[@]}")
         if [[ -z "$session_id" ]]; then
             session_id=$(echo "$resp" | grep -oP '"session_id"\s*:\s*"\K[^"]+')
+            echo "[INFO] Session ID received: $session_id"
         fi
     done
 
+    local start_time end_time response summary_md
     start_time=$(tail -n 1 "$TIMER_FILE_START")
     end_time=$(tail -n 1 "$TIMER_FILE_END")
+
     response=$(curl -s -X POST "$SERVER_URL/reconstruct" \
         -F "session_id=$session_id" \
         -F "timer_start=$start_time" \
