@@ -12,7 +12,7 @@ REQUESTED_EVENTS=()
 
 function show_usage() {
     echo "Usage:"
-    echo "  $0 <perf-event-1> [<perf-event-2> ...] [<interval-ms>]"
+    echo "  $0 events=<event1,event2,...> interval=<ms>"
     exit 1
 }
 
@@ -22,17 +22,29 @@ function setup_output_dir() {
 
 function parse_arguments() {
     if [[ $# -lt 1 ]]; then
-        echo "[ERROR] No perf events specified."
+        echo "[ERROR] No arguments specified."
         show_usage
     fi
 
     for arg in "$@"; do
-        if [[ "$arg" =~ ^[0-9]+$ ]]; then
-            INTERVAL_MS="$arg"
-        else
-            REQUESTED_EVENTS+=("$arg")
-        fi
+        case "$arg" in
+            interval=*)
+                INTERVAL_MS="${arg#interval=}"
+                ;;
+            events=*)
+                IFS=',' read -r -a REQUESTED_EVENTS <<< "${arg#events=}"
+                ;;
+            *)
+                echo "[ERROR] Unknown argument: $arg"
+                show_usage
+                ;;
+        esac
     done
+
+    if [[ ${#REQUESTED_EVENTS[@]} -eq 0 ]]; then
+        echo "[ERROR] No perf events specified."
+        show_usage
+    fi
 }
 
 function check_perf_paranoid() {
