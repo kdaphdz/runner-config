@@ -62,7 +62,7 @@ function start_measurement() {
     fi
 }
 
-function end_measurement() {
+function end_measurement_simple() {
     echo "[DEBUG] Starting end_measurement..." >&2
     read_vars
 
@@ -83,85 +83,7 @@ function end_measurement() {
     kill "$pid" 2>/dev/null || true
     rm -f "$PID_FILE"
 
-    date "+%s%6N" >> "$TIMER_FILE_END"
-    echo "[INFO] Timer end recorded: $(tail -n1 "$TIMER_FILE_END")" >&2
-
-    if [[ ! -f "$WATTSCI_OUTPUT_FILE" ]]; then
-        echo "[ERROR] Output file not found: $WATTSCI_OUTPUT_FILE" >&2
-        exit 1
-    fi
-    echo "[INFO] Output file exists: $WATTSCI_OUTPUT_FILE" >&2
-
-    # --- Comprimir y dividir ---
-    local original_name
-    original_name=$(basename "$WATTSCI_OUTPUT_FILE")
-    local compressed_file="$OUTPUT_DIR/${original_name}.gz"
-    gzip -c "$WATTSCI_OUTPUT_FILE" > "$compressed_file"
-    echo "[INFO] Compressed perf output saved to: $compressed_file" >&2
-
-    local chunk_size="10M"
-    split -b "$chunk_size" --numeric-suffixes=1 --suffix-length=3 \
-        "$compressed_file" "${compressed_file}_chunk_"
-    echo "[INFO] Chunks created: ${compressed_file}_chunk_*" >&2
-
-    # --- Campos para upload ---
-    local upload_fields=(
-        -F "CI=$CI"
-        -F "RUN_ID=$RUN_ID"
-        -F "REF_NAME=$REF_NAME"
-        -F "REPOSITORY=$REPOSITORY"
-        -F "WORKFLOW_ID=$WORKFLOW_ID"
-        -F "WORKFLOW_NAME=$WORKFLOW_NAME"
-        -F "COMMIT_HASH=$COMMIT_HASH"
-        -F "METHOD=$METHOD"
-        -F "LABEL=$LABEL"
-    )
-
-    local session_id=""
-    for chunk in "${compressed_file}_chunk_"*; do
-        echo "[DEBUG] Uploading chunk: $chunk" >&2
-        local resp
-        resp=$(curl -s -X POST "$SERVER_URL/upload" \
-            -F "chunk=@${chunk}" \
-            -F "chunk_name=$(basename "$chunk")" \
-            "${upload_fields[@]}")
-        echo "[DEBUG] Server response: $resp" >&2
-
-        if [[ -z "$session_id" ]]; then
-            session_id=$(echo "$resp" | grep -oP '"session_id"\s*:\s*"\K[^"]+')
-            echo "[INFO] Session ID received: $session_id" >&2
-        fi
-    done
-
-    local start_time end_time response summary_md
-    start_time=$(tail -n 1 "$TIMER_FILE_START")
-    end_time=$(tail -n 1 "$TIMER_FILE_END")
-    echo "[DEBUG] start_time=$start_time, end_time=$end_time" >&2
-
-    response=$(curl -s -X POST "$SERVER_URL/reconstruct" \
-        -F "session_id=$session_id" \
-        -F "timer_start=$start_time" \
-        -F "timer_end=$end_time" \
-        "${upload_fields[@]}" \
-        -F "original_name=$original_name")
-    echo "[DEBUG] Reconstruct response: $response" >&2
-
-    summary_md=$(echo "$response" | grep -oP '"summary_md"\s*:\s*"\K[^"]*' | sed 's/\\n/\n/g')
-
-    if [[ "$CI" == "GitHub" && -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
-        {
-            echo "## Reconstruction Status"
-            echo "- Session ID: $session_id"
-            echo "- Timer start: $start_time"
-            echo "- Timer end: $end_time"
-            if [[ -n "$summary_md" ]]; then
-                echo "### Server Summary"
-                echo "$summary_md"
-            fi
-        } >> "$GITHUB_STEP_SUMMARY"
-    fi
-
-    echo "[DEBUG] end_measurement finished" >&2
+    echo "[INFO] end_measurement finished" >&2
 }
 
 function baseline() {
