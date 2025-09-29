@@ -6,6 +6,8 @@ load_ci_vars
 source "$(dirname "$0")/vars.sh"
 read_vars
 
+SERVER_URL="http://172.24.106.17:5000"
+
 OUTPUT_DIR="/tmp/wattsci"
 PID_FILE="$OUTPUT_DIR/measurement.pid"
 TIMER_FILE_START="$OUTPUT_DIR/timer_start.txt"
@@ -148,6 +150,104 @@ function end_measurement() {
 
     date "+%s%6N" >> "$TIMER_FILE_END"
     echo "[INFO] Timer end recorded at $(tail -n1 "$TIMER_FILE_END")"
+
+    upload_measurement
+}
+
+function upload_measurement() {
+    local session_id=""
+    
+    # --- Upload baseline if exists ---
+    if [[ -f "$PERF_BASELINE_FILE" ]]; then
+        echo "[INFO] Uploading baseline measurement"
+        local original_name baseline_compressed
+        original_name=$(basename "$PERF_BASELINE_FILE")
+        baseline_compressed="$OUTPUT_DIR/${original_name}.gz"
+        
+        echo "[INFO] Compressing baseline $PERF_BASELINE_FILE -> $baseline_compressed"
+        gzip -c "$PERF_BASELINE_FILE" > "$baseline_compressed"
+        
+        local chunk_size="10M"
+        echo "[INFO] Splitting baseline compressed file into chunks of $chunk_size"
+        split -b "$chunk_size" --numeric-suffixes=1 --suffix-length=3 \
+            "$baseline_compressed" "${baseline_compressed}_chunk_"
+        
+        for chunk in "${baseline_compressed}_chunk_"*; do
+            echo "[INFO] Uploading baseline chunk: $chunk"
+            local resp
+            resp=$(curl -s -X POST "$SERVER_URL/upload" \
+                -F "chunk=@${chunk}" \
+                -F "chunk_name=$(basename "$chunk")" \
+                -F "type=baseline" \
+                -F "LABEL=$LABEL" \
+                -F "METHOD=$METHOD" \
+                -F "CI=$CI" \
+                -F "RUN_ID=$RUN_ID")
+            echo "[DEBUG] Server response: $resp"
+            
+            if [[ -z "$session_id" ]]; then
+                session_id=$(echo "$resp" | grep -oP '"session_id"\s*:\s*"\K[^"]+')
+                echo "[INFO] Session ID received for baseline: $session_id"
+            fi
+        done
+    else
+        echo "[INFO] No baseline file to upload"
+    fi
+
+    # --- Upload main measurement ---
+    if [[ -f "$PERF_OUTPUT_FILE" ]]; then
+        echo "[INFO] Uploading main measurement"
+        local original_name main_compressed
+        original_name=$(basename "$PERF_OUTPUT_FILE")
+        main_compressed="$OUTPUT_DIR/${original_name}.gz"
+        
+        echo "[INFO] Compressing main $PERF_OUTPUT_FILE -> $main_compressed"
+        gzip -c "$PERF_OUTPUT_FILE" > "$main_compressed"
+        
+        local chunk_size="10M"
+        echo "[INFO] Splitting main compressed file into chunks of $chunk_size"
+        split -b "$chunk_size" --numeric-suffixes=1 --suffix-length=3 \
+            "$main_compressed" "${main_compressed}_chunk_"
+        
+        for chunk in "${main_compressed}_chunk_"*; do
+            echo "[INFO] Uploading main chunk: $chunk"
+            local resp
+            resp=$(curl -s -X POST "$SERVER_URL/upload" \
+                -F "chunk=@${chunk}" \
+                -F "chunk_name=$(basename "$chunk")" \
+                -F "type=main" \
+                -F "LABEL=$LABEL" \
+                -F "METHOD=$METHOD" \
+                -F "CI=$CI" \
+                -F "RUN_ID=$RUN_ID")
+            echo "[DEBUG] Server response: $resp"
+            
+            if [[ -z "$session_id" ]]; then
+                session_id=$(echo "$resp" | grep -oP '"session_id"\s*:\s*"\K[^"]+')
+                echo "[INFO] Session ID received for main: $session_id"
+            fi
+        done
+    else
+        echo "[ERROR] Main measurement file not found: $PERF_OUTPUT_FILE"
+    fi
+
+    # --- Reconstruct on server ---
+    if [[ -n "$session_id" ]]; then
+        local start_time end_time response summary_md
+        start_time=$(tail -n 1 "$TIMER_FILE_START")
+        end_time=$(tail -n 1 "$TIMER_FILE_END")
+        echo "[DEBUG] start_time=$start_time, end_time=$end_time"
+
+        response=$(curl -s -X POST "$SERVER_URL/reconstruct" \
+            -F "session_id=$session_id" \
+            -F "timer_start=$start_time" \
+            -F "timer_end=$end_time" \
+            -F "LABEL=$LABEL" \
+            -F "METHOD=$METHOD" \
+            -F "CI=$CI" \
+            -F "RUN_ID=$RUN_ID")
+        echo "[DEBUG] Reconstruct response: $response"
+    fi
 }
 
 function show_usage() {
