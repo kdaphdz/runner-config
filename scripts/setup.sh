@@ -11,12 +11,11 @@ SERVER_URL="http://172.24.106.17:5000"
 PID_FILE="$OUTPUT_DIR/perf.pid"
 TIMER_FILE_START="$OUTPUT_DIR/timer_start.txt"
 TIMER_FILE_END="$OUTPUT_DIR/timer_end.txt"
+WATTSCI_OUTPUT_FILE="$OUTPUT_DIR/perf-data.txt"
 
 ACTION="${1:-}"
 LABEL="${2:-}"
-APPROACH="${3:-}"
-METHOD="${4:-}"
-shift 4
+shift 2
 TOOL_ARGS=("$@")
 
 function start_measurement {
@@ -28,14 +27,22 @@ function start_measurement {
     date "+%s%6N" >> "$TIMER_FILE_START"
 
     add_var 'LABEL' "$LABEL"
-    add_var 'METHOD' "$METHOD"
-    add_var 'APPROACH' "$APPROACH"
+
+    local METHOD="${TOOL_ARGS[0]}"
+    shift 1
+    local METHOD_ARGS=("$@")
 
     case "$METHOD" in
         perf)
-            local interval_ms="${TOOL_ARGS[-1]}"
-            local perf_events=("${TOOL_ARGS[@]:0:${#TOOL_ARGS[@]}-1}")
-            bash "$(dirname "$0")/perf.sh" "${perf_events[@]}" "$interval_ms" < /dev/null 2>&1 &
+            local interval_ms=""
+            local events=""
+            for arg in "${METHOD_ARGS[@]}"; do
+                [[ "$arg" == interval=* ]] && interval_ms="${arg#interval=}"
+                [[ "$arg" == events=* ]] && events="${arg#events=}"
+            done
+            IFS=',' read -ra PERF_EVENTS <<< "$events"
+
+            bash "$(dirname "$0")/perf.sh" "${PERF_EVENTS[@]}" "$interval_ms" < /dev/null 2>&1 &
             local parent_pid=$!
             sleep 1
             local child_pid
@@ -47,21 +54,20 @@ function start_measurement {
             echo "$child_pid" > "$PID_FILE"
             ;;
         *)
+            echo "[ERROR] Unsupported METHOD: $METHOD"
             exit 1
             ;;
     esac
 }
 
 function end_measurement {
-    local baseline_flag="false"
-    for arg in "$@"; do
-        if [[ "$arg" == "--baseline" ]]; then
-            baseline_flag="true"
-            break
-        fi
-    done
+    if [[ -z "$LABEL" ]]; then
+        echo "[ERROR] end_measurement requires LABEL as first argument."
+        exit 1
+    fi
 
     if [[ ! -f "$PID_FILE" ]]; then
+        echo "[ERROR] PID file $PID_FILE not found for label $LABEL."
         exit 1
     fi
 
@@ -77,37 +83,28 @@ function end_measurement {
     fi
 
     if [[ ! -f "$WATTSCI_OUTPUT_FILE" ]]; then
+        echo "[ERROR] Output file not found: $WATTSCI_OUTPUT_FILE"
         exit 1
     fi
 
+    local ORIGINAL_NAME
     ORIGINAL_NAME=$(basename "$WATTSCI_OUTPUT_FILE")
-    COMPRESSED_FILE="$OUTPUT_DIR/${ORIGINAL_NAME}.gz"
+    local COMPRESSED_FILE="$OUTPUT_DIR/${ORIGINAL_NAME}.gz"
     gzip -c "$WATTSCI_OUTPUT_FILE" > "$COMPRESSED_FILE"
 
-    CHUNK_SIZE="10M"
+    local CHUNK_SIZE="10M"
     split -b "$CHUNK_SIZE" --numeric-suffixes=1 --suffix-length=3 \
           "$COMPRESSED_FILE" "${COMPRESSED_FILE}_chunk_"
 
-    upload_fields=(
+    local upload_fields=(
         -F "CI=$CI"
         -F "RUN_ID=$RUN_ID"
-        -F "REF_NAME=$REF_NAME"
-        -F "REPOSITORY=$REPOSITORY"
-        -F "WORKFLOW_ID=$WORKFLOW_ID"
-        -F "WORKFLOW_NAME=$WORKFLOW_NAME"
-        -F "COMMIT_HASH=$COMMIT_HASH"
-        -F "METHOD=$METHOD"
         -F "LABEL=$LABEL"
     )
 
-    if [[ "$baseline_flag" == "true" ]]; then
-        upload_fields+=(-F "WATTSCI_BASELINE=true")
-    else
-        upload_fields+=(-F "WATTSCI_BASELINE=false")
-    fi
-
-    session_id=""
+    local session_id=""
     for chunk in "${COMPRESSED_FILE}_chunk_"*; do
+        local resp
         resp=$(curl -s -X POST "$SERVER_URL/upload" \
             -F "chunk=@${chunk}" \
             -F "chunk_name=$(basename "$chunk")" \
@@ -117,8 +114,11 @@ function end_measurement {
         fi
     done
 
+    local start_time
     start_time=$(tail -n 1 "$TIMER_FILE_START")
+    local end_time
     end_time=$(tail -n 1 "$TIMER_FILE_END")
+    local response
     response=$(curl -s -X POST "$SERVER_URL/reconstruct" \
         -F "session_id=$session_id" \
         -F "timer_start=$start_time" \
@@ -126,8 +126,8 @@ function end_measurement {
         "${upload_fields[@]}" \
         -F "original_name=$ORIGINAL_NAME")
 
+    local summary_md
     summary_md=$(echo "$response" | grep -oP '"summary_md"\s*:\s*"\K[^"]*' | sed 's/\\n/\n/g')
-
     if [[ "$CI" == "GitHub" && -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
         {
             echo "## Reconstruction Status"
@@ -142,27 +142,15 @@ function end_measurement {
     fi
 }
 
-function baseline {
-    start_measurement "$@"
-    sleep 5
-    end_measurement --baseline
-}
-
-function show_usage {
-    exit 1
-}
-
 case "$ACTION" in
     start_measurement)
         start_measurement "$@"
         ;;
     end_measurement)
-        end_measurement "$@"
-        ;;
-    baseline)
-        baseline "$@"
+        end_measurement
         ;;
     *)
-        show_usage
+        echo "[ERROR] Unknown action: $ACTION"
+        exit 1
         ;;
 esac
