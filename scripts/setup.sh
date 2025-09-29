@@ -53,8 +53,16 @@ function start_measurement {
 }
 
 function end_measurement {
+    echo "[DEBUG] Starting end_measurement..."
+
     # Cargar todas las variables guardadas en vars.sh
+    echo "[DEBUG] Reading vars from $var_file"
     read_vars
+
+    echo "[DEBUG] LABEL=${LABEL:-}"
+    echo "[DEBUG] METHOD=${METHOD:-}"
+    echo "[DEBUG] PID_FILE=$PID_FILE"
+    echo "[DEBUG] WATTSCI_OUTPUT_FILE=$WATTSCI_OUTPUT_FILE"
 
     if [[ -z "${LABEL:-}" ]]; then
         echo "[ERROR] end_measurement requires LABEL to be set."
@@ -65,11 +73,15 @@ function end_measurement {
         echo "[ERROR] PID file $PID_FILE not found for label $LABEL."
         exit 1
     fi
+    echo "[INFO] PID file exists"
 
     date "+%s%6N" >> "$TIMER_FILE_END"
+    echo "[INFO] Timer end recorded at $(tail -n 1 "$TIMER_FILE_END")"
 
     local pid
     pid=$(<"$PID_FILE")
+    echo "[DEBUG] PID to kill: $pid"
+
     if kill "$pid" 2>/dev/null; then
         rm -f "$PID_FILE"
         echo "[INFO] Measurement process PID=$pid stopped."
@@ -83,6 +95,7 @@ function end_measurement {
         echo "[ERROR] Output file not found: $WATTSCI_OUTPUT_FILE"
         exit 1
     fi
+    echo "[INFO] Output file exists: $WATTSCI_OUTPUT_FILE"
 
     local ORIGINAL_NAME
     ORIGINAL_NAME=$(basename "$WATTSCI_OUTPUT_FILE")
@@ -96,7 +109,7 @@ function end_measurement {
     echo "[INFO] Chunks created: ${COMPRESSED_FILE}_chunk_*"
 
     # Campos para upload
-    local upload_fields=(
+    local upload_fields=( 
         -F "CI=$CI"
         -F "RUN_ID=$RUN_ID"
         -F "REF_NAME=$REF_NAME"
@@ -110,11 +123,13 @@ function end_measurement {
 
     local session_id=""
     for chunk in "${COMPRESSED_FILE}_chunk_"*; do
+        echo "[DEBUG] Uploading chunk: $chunk"
         local resp
         resp=$(curl -s -X POST "$SERVER_URL/upload" \
             -F "chunk=@${chunk}" \
             -F "chunk_name=$(basename "$chunk")" \
             "${upload_fields[@]}")
+        echo "[DEBUG] Server response: $resp"
         if [[ -z "$session_id" ]]; then
             session_id=$(echo "$resp" | grep -oP '"session_id"\s*:\s*"\K[^"]+')
             echo "[INFO] Session ID received: $session_id"
@@ -124,6 +139,7 @@ function end_measurement {
     local start_time end_time response summary_md
     start_time=$(tail -n 1 "$TIMER_FILE_START")
     end_time=$(tail -n 1 "$TIMER_FILE_END")
+    echo "[DEBUG] start_time=$start_time, end_time=$end_time"
 
     response=$(curl -s -X POST "$SERVER_URL/reconstruct" \
         -F "session_id=$session_id" \
@@ -131,6 +147,7 @@ function end_measurement {
         -F "timer_end=$end_time" \
         "${upload_fields[@]}" \
         -F "original_name=$ORIGINAL_NAME")
+    echo "[DEBUG] Reconstruct response: $response"
 
     summary_md=$(echo "$response" | grep -oP '"summary_md"\s*:\s*"\K[^"]*' | sed 's/\\n/\n/g')
 
@@ -146,6 +163,8 @@ function end_measurement {
             fi
         } >> "$GITHUB_STEP_SUMMARY"
     fi
+
+    echo "[DEBUG] end_measurement finished"
 }
 
 function baseline {
