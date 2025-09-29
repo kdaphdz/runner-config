@@ -166,6 +166,7 @@ function upload_measurement() {
         -F "WORKFLOW_ID=$WORKFLOW_ID"
         -F "WORKFLOW_NAME=$WORKFLOW_NAME"
         -F "COMMIT_HASH=$COMMIT_HASH"
+        -F "APPROACH=$APPROACH"
         -F "METHOD=$METHOD"
         -F "LABEL=$LABEL"
     )
