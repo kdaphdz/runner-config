@@ -170,7 +170,7 @@ function upload_measurement() {
         -F "LABEL=$LABEL"
     )
 
-    if [[ -f "$BASELINE_OUTPUT_FILE" ]]; then
+    if [[ -n "${BASELINE_OUTPUT_FILE:-}" && -f "$BASELINE_OUTPUT_FILE" ]]; then
         echo "[INFO] Uploading baseline measurement"
         local original_name baseline_compressed
         original_name=$(basename "$PERF_BASELINE_FILE")
