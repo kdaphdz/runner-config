@@ -12,6 +12,8 @@ OUTPUT_DIR="/tmp/wattsci"
 PID_FILE="$OUTPUT_DIR/measurement.pid"
 TIMER_FILE_START="$OUTPUT_DIR/timer_start.txt"
 TIMER_FILE_END="$OUTPUT_DIR/timer_end.txt"
+TIMER_FILE_BASELINE_START="$OUTPUT_DIR/timer_baseline_start.txt"
+TIMER_FILE_BASELINE_END="$OUTPUT_DIR/timer_baseline_end.txt"
 VAR_FILE="$OUTPUT_DIR/vars.sh"
 
 PERF_OUTPUT_FILE="$OUTPUT_DIR/perf-data.txt"
@@ -52,13 +54,8 @@ function perform_measurement() {
     local OUTPUT_FILE
 
     case "$METHOD" in
-        perf)
-            OUTPUT_FILE="$PERF_OUTPUT_FILE"
-            ;;
-        *)
-            echo "[ERROR] Unsupported METHOD: $METHOD"
-            exit 1
-            ;;
+        perf) OUTPUT_FILE="$PERF_OUTPUT_FILE" ;;
+        *) echo "[ERROR] Unsupported METHOD: $METHOD"; exit 1 ;;
     esac
 
     run_method_instance "$METHOD" "$OUTPUT_FILE" "${TOOL_ARGS[@]}"
@@ -73,25 +70,25 @@ function baseline_measurement() {
     local OUTPUT_FILE
 
     case "$METHOD" in
-        perf)
-            OUTPUT_FILE="$PERF_BASELINE_FILE"
-            ;;
-        *)
-            echo "[ERROR] Unsupported METHOD for baseline: $METHOD"
-            exit 1
-            ;;
+        perf) OUTPUT_FILE="$PERF_BASELINE_FILE" ;;
+        *) echo "[ERROR] Unsupported METHOD for baseline: $METHOD"; exit 1 ;;
     esac
 
     if [[ ! -f "$OUTPUT_FILE" ]]; then
         echo "[INFO] Baseline file not found. Running baseline measurement..."
+        date "+%s%6N" >> "$TIMER_FILE_BASELINE_START"
+
         run_method_instance "$METHOD" "$OUTPUT_FILE" "${TOOL_ARGS[@]}"
         sleep 5
+
         local pid
         pid=$(<"$PID_FILE")
         echo "[INFO] Stopping baseline PID=$pid..."
         pkill -P "$pid" || true
         kill "$pid" 2>/dev/null || true
         rm -f "$PID_FILE"
+
+        date "+%s%6N" >> "$TIMER_FILE_BASELINE_END"
         echo "[INFO] Baseline measurement finished"
     else
         echo "[INFO] Baseline file exists, skipping measurement"
@@ -156,8 +153,7 @@ function end_measurement() {
 
 function upload_measurement() {
     local session_id=""
-    
-    # --- Campos comunes para el upload ---
+
     local upload_fields=(
         -F "CI=$CI"
         -F "RUN_ID=$RUN_ID"
@@ -171,21 +167,15 @@ function upload_measurement() {
         -F "LABEL=$LABEL"
     )
 
-    # --- Upload baseline if exists ---
     if [[ -f "$PERF_BASELINE_FILE" ]]; then
         echo "[INFO] Uploading baseline measurement"
         local original_name baseline_compressed
         original_name=$(basename "$PERF_BASELINE_FILE")
         baseline_compressed="$OUTPUT_DIR/${original_name}.gz"
-        
-        echo "[INFO] Compressing baseline $PERF_BASELINE_FILE -> $baseline_compressed"
+
         gzip -c "$PERF_BASELINE_FILE" > "$baseline_compressed"
-        
-        local chunk_size="10M"
-        echo "[INFO] Splitting baseline compressed file into chunks of $chunk_size"
-        split -b "$chunk_size" --numeric-suffixes=1 --suffix-length=3 \
-            "$baseline_compressed" "${baseline_compressed}_chunk_"
-        
+        split -b 10M --numeric-suffixes=1 --suffix-length=3 "$baseline_compressed" "${baseline_compressed}_chunk_"
+
         for chunk in "${baseline_compressed}_chunk_"*; do
             echo "[INFO] Uploading baseline chunk: $chunk"
             local resp
@@ -193,33 +183,27 @@ function upload_measurement() {
                 -F "chunk=@${chunk}" \
                 -F "chunk_name=$(basename "$chunk")" \
                 -F "type=baseline" \
+                -F "timer_start=$(tail -n1 "$TIMER_FILE_BASELINE_START")" \
+                -F "timer_end=$(tail -n1 "$TIMER_FILE_BASELINE_END")" \
                 "${upload_fields[@]}")
             echo "[DEBUG] Server response: $resp"
-            
+
             if [[ -z "$session_id" ]]; then
                 session_id=$(echo "$resp" | grep -oP '"session_id"\s*:\s*"\K[^"]+')
                 echo "[INFO] Session ID received for baseline: $session_id"
             fi
         done
-    else
-        echo "[INFO] No baseline file to upload"
     fi
 
-    # --- Upload main measurement ---
     if [[ -f "$PERF_OUTPUT_FILE" ]]; then
         echo "[INFO] Uploading main measurement"
         local original_name main_compressed
         original_name=$(basename "$PERF_OUTPUT_FILE")
         main_compressed="$OUTPUT_DIR/${original_name}.gz"
-        
-        echo "[INFO] Compressing main $PERF_OUTPUT_FILE -> $main_compressed"
+
         gzip -c "$PERF_OUTPUT_FILE" > "$main_compressed"
-        
-        local chunk_size="10M"
-        echo "[INFO] Splitting main compressed file into chunks of $chunk_size"
-        split -b "$chunk_size" --numeric-suffixes=1 --suffix-length=3 \
-            "$main_compressed" "${main_compressed}_chunk_"
-        
+        split -b 10M --numeric-suffixes=1 --suffix-length=3 "$main_compressed" "${main_compressed}_chunk_"
+
         for chunk in "${main_compressed}_chunk_"*; do
             echo "[INFO] Uploading main chunk: $chunk"
             local resp
@@ -227,25 +211,22 @@ function upload_measurement() {
                 -F "chunk=@${chunk}" \
                 -F "chunk_name=$(basename "$chunk")" \
                 -F "type=main" \
+                -F "timer_start=$(tail -n1 "$TIMER_FILE_START")" \
+                -F "timer_end=$(tail -n1 "$TIMER_FILE_END")" \
                 "${upload_fields[@]}")
             echo "[DEBUG] Server response: $resp"
-            
+
             if [[ -z "$session_id" ]]; then
                 session_id=$(echo "$resp" | grep -oP '"session_id"\s*:\s*"\K[^"]+')
                 echo "[INFO] Session ID received for main: $session_id"
             fi
         done
-    else
-        echo "[ERROR] Main measurement file not found: $PERF_OUTPUT_FILE"
     fi
 
-    # --- Reconstruct on server ---
     if [[ -n "$session_id" ]]; then
         local start_time end_time response
         start_time=$(tail -n 1 "$TIMER_FILE_START")
         end_time=$(tail -n 1 "$TIMER_FILE_END")
-        echo "[DEBUG] start_time=$start_time, end_time=$end_time"
-
         response=$(curl -s -X POST "$SERVER_URL/reconstruct" \
             -F "session_id=$session_id" \
             -F "timer_start=$start_time" \
