@@ -27,16 +27,14 @@ function start_measurement {
     date "+%s%6N" >> "$TIMER_FILE_START"
 
     add_var 'LABEL' "$LABEL"
-
-    local METHOD="${TOOL_ARGS[0]}"
-    shift 1
-    local METHOD_ARGS=("$@")
+    add_var 'APPROACH' "$APPROACH"
+    add_var 'METHOD' "$METHOD"
 
     case "$METHOD" in
         perf)
             local interval_ms=""
             local events=""
-            for arg in "${METHOD_ARGS[@]}"; do
+            for arg in "${TOOL_ARGS[@]}"; do
                 [[ "$arg" == interval=* ]] && interval_ms="${arg#interval=}"
                 [[ "$arg" == events=* ]] && events="${arg#events=}"
             done
