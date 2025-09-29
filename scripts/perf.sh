@@ -1,18 +1,25 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-OUTPUT_DIR="/tmp/wattsci"
-WATTSCI_OUTPUT_FILE="$OUTPUT_DIR/perf-data.txt"
+if [[ $# -lt 1 ]]; then
+    echo "[ERROR] Missing output file argument"
+    echo "Usage: $0 <output_file> events=<event1,event2,...> interval=<ms>"
+    exit 1
+fi
+
+OUTPUT_FILE="$1"
+shift 1
+
 INTERVAL_MS=1000
 REQUESTED_EVENTS=()
 
 function show_usage() {
-    echo "Usage: $0 events=<event1,event2,...> interval=<ms>"
+    echo "Usage: $0 <output_file> events=<event1,event2,...> interval=<ms>"
     exit 1
 }
 
 function setup_output_dir() {
-    mkdir -p "$OUTPUT_DIR"
+    mkdir -p "$(dirname "$OUTPUT_FILE")"
 }
 
 function parse_arguments() {
@@ -68,11 +75,7 @@ function validate_events() {
 }
 
 function run_perf() {
-    echo "[INFO] Measuring perf energy usage (interval=${INTERVAL_MS}ms)..."
-    echo "[INFO] Valid events: ${VALID_EVENTS[*]}"
-
-    LC_NUMERIC=C perf stat -a -I "$INTERVAL_MS" -e "$(IFS=','; echo "${VALID_EVENTS[*]}")" 2> "$WATTSCI_OUTPUT_FILE"
-    echo "[INFO] Perf measurement complete. Output: $WATTSCI_OUTPUT_FILE"
+    LC_NUMERIC=C perf stat -a -I "$INTERVAL_MS" -e "$(IFS=','; echo "${VALID_EVENTS[*]}")" 2> "$OUTPUT_FILE"
 }
 
 setup_output_dir
