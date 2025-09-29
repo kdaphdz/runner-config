@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
 # --- Cargar funciones comunes ---
 source "$(dirname "$0")/ci_vars.sh"
@@ -12,7 +13,8 @@ SERVER_URL="http://172.24.106.17:5000"
 PID_FILE="$OUTPUT_DIR/perf.pid"
 TIMER_FILE_START="$OUTPUT_DIR/timer_start.txt"
 TIMER_FILE_END="$OUTPUT_DIR/timer_end.txt"
-var_file="$OUTPUT_DIR/vars.sh"
+VAR_FILE="$OUTPUT_DIR/vars.sh"
+WATTSCI_OUTPUT_FILE="$OUTPUT_DIR/perf-data.txt"
 
 ACTION="${1:-}"
 LABEL="${2:-}"
@@ -22,64 +24,67 @@ shift 4
 TOOL_ARGS=("$@")
 
 # --- Funciones ---
-function start_measurement {
+function add_var() {
+    local key="$1"
+    local value="$2"
+    echo "${key}='${value}'" >> "$VAR_FILE"
+}
+
+function read_vars() {
+    [[ -f "$VAR_FILE" ]] && source "$VAR_FILE"
+}
+
+function start_measurement() {
     echo "[DEBUG] Starting start_measurement..." >&2
 
-    # Preparar directorio de salida
     mkdir -p "$OUTPUT_DIR"
     date "+%s%6N" >> "$TIMER_FILE_START"
 
-    # Guardar variables
     add_var 'LABEL' "$LABEL"
     add_var 'METHOD' "$METHOD"
     add_var 'APPROACH' "$APPROACH"
 
-    case "$METHOD" in
-        perf)
-            local perf_log="$OUTPUT_DIR/perf.log"
+    if [[ "$METHOD" == "perf" ]]; then
+        local perf_log="$OUTPUT_DIR/perf.log"
 
-            # Lanzar perf.sh en background, redirigiendo salida a log
-            nohup bash "$(dirname "$0")/perf.sh" "${TOOL_ARGS[@]}" > "$perf_log" 2>&1 &
-            local pid=$!
+        # Lanzar perf.sh en background, salida a log
+        nohup bash "$(dirname "$0")/perf.sh" "${TOOL_ARGS[@]}" > "$perf_log" 2>&1 &
+        local pid=$!
 
-            # Guardar PID en archivo y en vars.sh
-            echo "$pid" > "$PID_FILE"
-            add_var 'PID' "$pid"
+        # Guardar PID
+        echo "$pid" > "$PID_FILE"
+        add_var 'PID' "$pid"
 
-            echo "[INFO] Measurement process started, PID=$pid, logging to $perf_log" >&2
-            ;;
-        *)
-            echo "[ERROR] Unsupported METHOD: $METHOD" >&2
-            exit 1
-            ;;
-    esac
+        echo "[INFO] Measurement started, PID=$pid, logging to $perf_log" >&2
+    else
+        echo "[ERROR] Unsupported METHOD: $METHOD" >&2
+        exit 1
+    fi
 }
 
-function end_measurement {
+function end_measurement() {
     echo "[DEBUG] Starting end_measurement..." >&2
+    read_vars
 
-    # Cargar variables guardadas
-    if [[ -f "$var_file" ]]; then
-        echo "[DEBUG] Reading vars from $var_file" >&2
-        read_vars
-    else
-        echo "[WARNING] var_file does not exist: $var_file" >&2
+    if [[ -z "${LABEL:-}" ]]; then
+        echo "[ERROR] LABEL is not set" >&2
+        exit 1
     fi
-
-    echo "[DEBUG] LABEL=${LABEL:-}, METHOD=${METHOD:-}, PID_FILE=$PID_FILE, WATTSCI_OUTPUT_FILE=$WATTSCI_OUTPUT_FILE" >&2
 
     if [[ ! -f "$PID_FILE" ]]; then
         echo "[ERROR] PID file not found: $PID_FILE" >&2
         exit 1
     fi
+
     local pid
     pid=$(<"$PID_FILE")
-    echo "[INFO] Stopping measurement process PID=$pid" >&2
+    echo "[INFO] Killing measurement PID=$pid and its children..." >&2
+    pkill -P "$pid" || true
     kill "$pid" 2>/dev/null || true
     rm -f "$PID_FILE"
 
     date "+%s%6N" >> "$TIMER_FILE_END"
-    echo "[INFO] Timer end recorded at $(tail -n 1 "$TIMER_FILE_END")" >&2
+    echo "[INFO] Timer end recorded: $(tail -n1 "$TIMER_FILE_END")" >&2
 
     if [[ ! -f "$WATTSCI_OUTPUT_FILE" ]]; then
         echo "[ERROR] Output file not found: $WATTSCI_OUTPUT_FILE" >&2
@@ -87,17 +92,19 @@ function end_measurement {
     fi
     echo "[INFO] Output file exists: $WATTSCI_OUTPUT_FILE" >&2
 
-    local ORIGINAL_NAME COMPRESSED_FILE
-    ORIGINAL_NAME=$(basename "$WATTSCI_OUTPUT_FILE")
-    COMPRESSED_FILE="$OUTPUT_DIR/${ORIGINAL_NAME}.gz"
-    gzip -c "$WATTSCI_OUTPUT_FILE" > "$COMPRESSED_FILE"
-    echo "[INFO] Compressed perf output saved to: $COMPRESSED_FILE" >&2
+    # --- Comprimir y dividir ---
+    local original_name
+    original_name=$(basename "$WATTSCI_OUTPUT_FILE")
+    local compressed_file="$OUTPUT_DIR/${original_name}.gz"
+    gzip -c "$WATTSCI_OUTPUT_FILE" > "$compressed_file"
+    echo "[INFO] Compressed perf output saved to: $compressed_file" >&2
 
-    local CHUNK_SIZE="10M"
-    split -b "$CHUNK_SIZE" --numeric-suffixes=1 --suffix-length=3 \
-        "$COMPRESSED_FILE" "${COMPRESSED_FILE}_chunk_"
-    echo "[INFO] Chunks created: ${COMPRESSED_FILE}_chunk_*" >&2
+    local chunk_size="10M"
+    split -b "$chunk_size" --numeric-suffixes=1 --suffix-length=3 \
+        "$compressed_file" "${compressed_file}_chunk_"
+    echo "[INFO] Chunks created: ${compressed_file}_chunk_*" >&2
 
+    # --- Campos para upload ---
     local upload_fields=(
         -F "CI=$CI"
         -F "RUN_ID=$RUN_ID"
@@ -111,7 +118,7 @@ function end_measurement {
     )
 
     local session_id=""
-    for chunk in "${COMPRESSED_FILE}_chunk_"*; do
+    for chunk in "${compressed_file}_chunk_"*; do
         echo "[DEBUG] Uploading chunk: $chunk" >&2
         local resp
         resp=$(curl -s -X POST "$SERVER_URL/upload" \
@@ -119,6 +126,7 @@ function end_measurement {
             -F "chunk_name=$(basename "$chunk")" \
             "${upload_fields[@]}")
         echo "[DEBUG] Server response: $resp" >&2
+
         if [[ -z "$session_id" ]]; then
             session_id=$(echo "$resp" | grep -oP '"session_id"\s*:\s*"\K[^"]+')
             echo "[INFO] Session ID received: $session_id" >&2
@@ -135,7 +143,7 @@ function end_measurement {
         -F "timer_start=$start_time" \
         -F "timer_end=$end_time" \
         "${upload_fields[@]}" \
-        -F "original_name=$ORIGINAL_NAME")
+        -F "original_name=$original_name")
     echo "[DEBUG] Reconstruct response: $response" >&2
 
     summary_md=$(echo "$response" | grep -oP '"summary_md"\s*:\s*"\K[^"]*' | sed 's/\\n/\n/g')
@@ -156,29 +164,21 @@ function end_measurement {
     echo "[DEBUG] end_measurement finished" >&2
 }
 
-function baseline {
+function baseline() {
     start_measurement "$@"
     sleep 5
-    end_measurement --baseline
+    end_measurement
 }
 
-function show_usage {
+function show_usage() {
     echo "Usage: $0 start_measurement|end_measurement|baseline LABEL [APPROACH METHOD ...]" >&2
     exit 1
 }
 
 # --- Acción principal ---
 case "$ACTION" in
-    start_measurement)
-        start_measurement "$@"
-        ;;
-    end_measurement)
-        end_measurement "$@"
-        ;;
-    baseline)
-        baseline "$@"
-        ;;
-    *)
-        show_usage
-        ;;
+    start_measurement) start_measurement "$@" ;;
+    end_measurement) end_measurement "$@" ;;
+    baseline) baseline "$@" ;;
+    *) show_usage ;;
 esac
