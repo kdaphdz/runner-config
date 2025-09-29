@@ -6,7 +6,7 @@ var_file="/tmp/wattsci/vars.sh"
 function add_var() {
     local key="$1"
     local value="$2"
-    echo "${key}='${value}'" >> "$VAR_FILE"
+    echo "${key}='${value}'" >> "$var_file"
 }
 
 function read_vars() {
