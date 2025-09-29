@@ -63,12 +63,17 @@ function start_measurement() {
     fi
     echo "[INFO] Baseline flag: $BASELINE"
 
-    LABEL="${1:-}"
-    APPROACH="${2:-}"
-    METHOD="${3:-}"
-    shift 3
-    TOOL_ARGS=("$@")
+    if [[ $# -lt 3 ]]; then
+        echo "[ERROR] Not enough arguments. Expected LABEL, APPROACH, METHOD."
+        show_usage
+    fi
 
+    LABEL="$1"
+    APPROACH="$2"
+    METHOD="$3"
+    shift 3
+
+    TOOL_ARGS=("$@")
     mkdir -p "$OUTPUT_DIR"
 
     if [[ "$BASELINE" == "true" && ! -f "$PERF_BASELINE_FILE" ]]; then
@@ -93,6 +98,7 @@ function start_measurement() {
         exit 1
     fi
 }
+
 
 function end_measurement() {
     echo "[DEBUG] Starting end_measurement..." >&2
