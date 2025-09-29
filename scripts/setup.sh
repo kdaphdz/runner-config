@@ -195,7 +195,7 @@ function upload_measurement() {
         done
     fi
 
-    if [[ -f "$PERF_OUTPUT_FILE" ]]; then
+    if [[ "$BASELINE" == "true" && -f "$PERF_BASELINE_FILE" ]]; then
         echo "[INFO] Uploading main measurement"
         local original_name main_compressed
         original_name=$(basename "$PERF_OUTPUT_FILE")
