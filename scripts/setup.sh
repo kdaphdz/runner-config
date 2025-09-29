@@ -176,7 +176,7 @@ function upload_measurement() {
         original_name=$(basename "$PERF_BASELINE_FILE")
         baseline_compressed="$OUTPUT_DIR/${original_name}.gz"
 
-        gzip -c "$PERF_BASELINE_FILE" > "$baseline_compressed"
+        gzip -c "$BASELINE_OUTPUT_FILE" > "$baseline_compressed"
         split -b 10M --numeric-suffixes=1 --suffix-length=3 "$baseline_compressed" "${baseline_compressed}_chunk_"
 
         for chunk in "${baseline_compressed}_chunk_"*; do
@@ -198,7 +198,7 @@ function upload_measurement() {
         done
     fi
 
-    if [[ -f "$OUTPUT_FILE" ]]; then
+    if [[ -n "${OUTPUT_FILE:-}" && -f "$OUTPUT_FILE" ]]; then
         echo "[INFO] Uploading main measurement"
         local original_name main_compressed
         original_name=$(basename "$PERF_OUTPUT_FILE")
