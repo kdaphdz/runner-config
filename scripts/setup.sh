@@ -45,8 +45,8 @@ function start_measurement() {
     date "+%s%6N" >> "$TIMER_FILE_START"
 
     add_var 'LABEL' "$LABEL"
-    add_var 'METHOD' "$METHOD"
     add_var 'APPROACH' "$APPROACH"
+    add_var 'METHOD' "$METHOD"
 
     if [[ "$METHOD" == "perf" ]]; then
         local perf_log="$OUTPUT_DIR/perf.log"
