@@ -18,16 +18,6 @@ PERF_BASELINE_FILE="$OUTPUT_DIR/perf-baseline.txt"
 ACTION="${1:-}"
 shift || true
 
-function add_var() {
-    local key="$1"
-    local value="$2"
-    echo "${key}='${value}'" >> "$VAR_FILE"
-}
-
-function read_vars() {
-    [[ -f "$VAR_FILE" ]] && source "$VAR_FILE"
-}
-
 function baseline_measurement() {
     local LABEL="$1"
     local APPROACH="$2"
@@ -35,9 +25,11 @@ function baseline_measurement() {
     shift 3
     local TOOL_ARGS=("$@")
 
+    echo "[DEBUG] Starting baseline_measurement..."
     mkdir -p "$OUTPUT_DIR"
 
     if [[ "$METHOD" == "perf" ]]; then
+        echo "[INFO] Launching perf for baseline..."
         nohup bash "$(dirname "$0")/perf.sh" "$PERF_BASELINE_FILE" "${TOOL_ARGS[@]}" > "$OUTPUT_DIR/perf.baseline.log" 2>&1 &
         local pid=$!
         echo "$pid" > "$PID_FILE"
@@ -77,8 +69,10 @@ function start_measurement() {
     mkdir -p "$OUTPUT_DIR"
 
     if [[ "$BASELINE" == "true" && ! -f "$PERF_BASELINE_FILE" ]]; then
-        echo "[INFO] Running baseline_measurement..."
+        echo "[INFO] Baseline file not found. Running baseline_measurement..."
         baseline_measurement "$LABEL" "$APPROACH" "$METHOD" "${TOOL_ARGS[@]}"
+    else
+        echo "[INFO] Skipping baseline_measurement"
     fi
 
     date "+%s%6N" >> "$TIMER_FILE_START"
@@ -88,6 +82,7 @@ function start_measurement() {
     add_var 'BASELINE' "$BASELINE"
 
     if [[ "$METHOD" == "perf" ]]; then
+        echo "[INFO] Launching perf for main measurement..."
         nohup bash "$(dirname "$0")/perf.sh" "$PERF_OUTPUT_FILE" "${TOOL_ARGS[@]}" > "$OUTPUT_DIR/perf.log" 2>&1 &
         local pid=$!
         echo "$pid" > "$PID_FILE"
@@ -114,11 +109,13 @@ function end_measurement() {
 
     local pid
     pid=$(<"$PID_FILE")
+    echo "[INFO] Stopping measurement PID=$pid..."
     pkill -P "$pid" || true
     kill "$pid" 2>/dev/null || true
     rm -f "$PID_FILE"
 
     date "+%s%6N" >> "$TIMER_FILE_END"
+    echo "[INFO] Timer end recorded at $(tail -n1 "$TIMER_FILE_END")"
 
     if [[ ! -f "$PERF_OUTPUT_FILE" ]]; then
         echo "[ERROR] Output file not found: $PERF_OUTPUT_FILE"
@@ -127,15 +124,13 @@ function end_measurement() {
 }
 
 function show_usage() {
-    echo "Usage: $0 start_measurement [baseline=true|false] LABEL APPROACH METHOD [TOOL_ARGS ...]"
-    echo "       $0 end_measurement"
-    echo "       $0 baseline LABEL APPROACH METHOD [TOOL_ARGS ...]"
+    echo "[INFO] Usage: $0 start_measurement [baseline=true|false] LABEL APPROACH METHOD [TOOL_ARGS ...]"
+    echo "[INFO]        $0 end_measurement"
     exit 1
 }
 
 case "$ACTION" in
     start_measurement) start_measurement "$@" ;;
     end_measurement) end_measurement ;;
-    baseline) baseline_measurement "$@" ;;
     *) show_usage ;;
 esac
