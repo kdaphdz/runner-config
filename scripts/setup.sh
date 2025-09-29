@@ -15,13 +15,18 @@ WATTSCI_OUTPUT_FILE="$OUTPUT_DIR/perf-data.txt"
 
 ACTION="${1:-}"
 LABEL="${2:-}"
-shift 2
+APPROACH="${3:-}"
+METHOD="${4:-}"
+shift 4
 TOOL_ARGS=("$@")
 
 function start_measurement {
-    if [[ -d "$OUTPUT_DIR" ]]; then
-        rm -rf "$OUTPUT_DIR"
+    if [[ -z "$METHOD" || -z "$APPROACH" || -z "$LABEL" ]]; then
+        echo "[ERROR] start_measurement requires LABEL, APPROACH, METHOD"
+        exit 1
     fi
+
+    [[ -d "$OUTPUT_DIR" ]] && rm -rf "$OUTPUT_DIR"
     mkdir -p "$OUTPUT_DIR"
 
     date "+%s%6N" >> "$TIMER_FILE_START"
@@ -38,6 +43,11 @@ function start_measurement {
                 [[ "$arg" == interval=* ]] && interval_ms="${arg#interval=}"
                 [[ "$arg" == events=* ]] && events="${arg#events=}"
             done
+
+            if [[ -z "$interval_ms" ]]; then
+                interval_ms=1000
+            fi
+
             IFS=',' read -ra PERF_EVENTS <<< "$events"
 
             bash "$(dirname "$0")/perf.sh" "${PERF_EVENTS[@]}" "$interval_ms" < /dev/null 2>&1 &
@@ -64,45 +74,29 @@ function end_measurement {
         exit 1
     fi
 
-    if [[ ! -f "$PID_FILE" ]]; then
-        echo "[ERROR] PID file $PID_FILE not found for label $LABEL."
-        exit 1
-    fi
+    [[ ! -f "$PID_FILE" ]] && { echo "[ERROR] PID file not found for label $LABEL."; exit 1; }
 
     date "+%s%6N" >> "$TIMER_FILE_END"
 
     local pid
     pid=$(<"$PID_FILE")
-    if kill "$pid" 2>/dev/null; then
-        rm -f "$PID_FILE"
-    else
-        rm -f "$PID_FILE"
-        exit 1
-    fi
+    kill "$pid" 2>/dev/null || true
+    rm -f "$PID_FILE"
 
-    if [[ ! -f "$WATTSCI_OUTPUT_FILE" ]]; then
-        echo "[ERROR] Output file not found: $WATTSCI_OUTPUT_FILE"
-        exit 1
-    fi
+    [[ ! -f "$WATTSCI_OUTPUT_FILE" ]] && { echo "[ERROR] Output file not found: $WATTSCI_OUTPUT_FILE"; exit 1; }
 
-    local ORIGINAL_NAME
+    local ORIGINAL_NAME COMPRESSED_FILE CHUNK_SIZE session_id start_time end_time response summary_md
     ORIGINAL_NAME=$(basename "$WATTSCI_OUTPUT_FILE")
-    local COMPRESSED_FILE="$OUTPUT_DIR/${ORIGINAL_NAME}.gz"
+    COMPRESSED_FILE="$OUTPUT_DIR/${ORIGINAL_NAME}.gz"
     gzip -c "$WATTSCI_OUTPUT_FILE" > "$COMPRESSED_FILE"
 
-    local CHUNK_SIZE="10M"
-    split -b "$CHUNK_SIZE" --numeric-suffixes=1 --suffix-length=3 \
-          "$COMPRESSED_FILE" "${COMPRESSED_FILE}_chunk_"
+    CHUNK_SIZE="10M"
+    split -b "$CHUNK_SIZE" --numeric-suffixes=1 --suffix-length=3 "$COMPRESSED_FILE" "${COMPRESSED_FILE}_chunk_"
 
-    local upload_fields=(
-        -F "CI=$CI"
-        -F "RUN_ID=$RUN_ID"
-        -F "LABEL=$LABEL"
-    )
+    local upload_fields=(-F "CI=$CI" -F "RUN_ID=$RUN_ID" -F "LABEL=$LABEL")
 
-    local session_id=""
+    session_id=""
     for chunk in "${COMPRESSED_FILE}_chunk_"*; do
-        local resp
         resp=$(curl -s -X POST "$SERVER_URL/upload" \
             -F "chunk=@${chunk}" \
             -F "chunk_name=$(basename "$chunk")" \
@@ -112,11 +106,8 @@ function end_measurement {
         fi
     done
 
-    local start_time
     start_time=$(tail -n 1 "$TIMER_FILE_START")
-    local end_time
     end_time=$(tail -n 1 "$TIMER_FILE_END")
-    local response
     response=$(curl -s -X POST "$SERVER_URL/reconstruct" \
         -F "session_id=$session_id" \
         -F "timer_start=$start_time" \
@@ -124,7 +115,6 @@ function end_measurement {
         "${upload_fields[@]}" \
         -F "original_name=$ORIGINAL_NAME")
 
-    local summary_md
     summary_md=$(echo "$response" | grep -oP '"summary_md"\s*:\s*"\K[^"]*' | sed 's/\\n/\n/g')
     if [[ "$CI" == "GitHub" && -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
         {
@@ -132,17 +122,14 @@ function end_measurement {
             echo "- Session ID: $session_id"
             echo "- Timer start: $start_time"
             echo "- Timer end: $end_time"
-            if [[ -n "$summary_md" ]]; then
-                echo "### Server Summary"
-                echo "$summary_md"
-            fi
+            [[ -n "$summary_md" ]] && echo -e "### Server Summary\n$summary_md"
         } >> "$GITHUB_STEP_SUMMARY"
     fi
 }
 
 case "$ACTION" in
     start_measurement)
-        start_measurement "$@"
+        start_measurement
         ;;
     end_measurement)
         end_measurement
