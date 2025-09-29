@@ -4,7 +4,6 @@ set -euo pipefail
 source "$(dirname "$0")/ci_vars.sh"
 load_ci_vars
 source "$(dirname "$0")/vars.sh"
-read_vars
 
 SERVER_URL="http://172.24.106.17:5000"
 
@@ -58,6 +57,8 @@ function perform_measurement() {
         *) echo "[ERROR] Unsupported METHOD: $METHOD"; exit 1 ;;
     esac
 
+    add_var 'OUTPUT_FILE' "$OUTPUT_FILE"
+
     run_method_instance "$METHOD" "$OUTPUT_FILE" "${TOOL_ARGS[@]}"
 }
 
@@ -73,6 +74,8 @@ function baseline_measurement() {
         perf) OUTPUT_FILE="$PERF_BASELINE_FILE" ;;
         *) echo "[ERROR] Unsupported METHOD for baseline: $METHOD"; exit 1 ;;
     esac
+
+    add_var 'BASELINE_OUTPUT_FILE' "$OUTPUT_FILE"
 
     if [[ ! -f "$OUTPUT_FILE" ]]; then
         echo "[INFO] Baseline file not found. Running baseline measurement..."
@@ -167,7 +170,7 @@ function upload_measurement() {
         -F "LABEL=$LABEL"
     )
 
-    if [[ -f "$PERF_BASELINE_FILE" ]]; then
+    if [[ -f "$BASELINE_OUTPUT_FILE" ]]; then
         echo "[INFO] Uploading baseline measurement"
         local original_name baseline_compressed
         original_name=$(basename "$PERF_BASELINE_FILE")
@@ -195,7 +198,7 @@ function upload_measurement() {
         done
     fi
 
-    if [[ "$BASELINE" == "true" && -f "$PERF_BASELINE_FILE" ]]; then
+    if [[ -f "$OUTPUT_FILE" ]]; then
         echo "[INFO] Uploading main measurement"
         local original_name main_compressed
         original_name=$(basename "$PERF_OUTPUT_FILE")
