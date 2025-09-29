@@ -16,12 +16,9 @@ TIMER_FILE_END="$OUTPUT_DIR/timer_end.txt"
 VAR_FILE="$OUTPUT_DIR/vars.sh"
 WATTSCI_OUTPUT_FILE="$OUTPUT_DIR/perf-data.txt"
 
+# --- Argumentos ---
 ACTION="${1:-}"
 LABEL="${2:-}"
-APPROACH="${3:-}"
-METHOD="${4:-}"
-shift 4
-TOOL_ARGS=("$@")
 
 # --- Funciones ---
 function add_var() {
@@ -35,6 +32,12 @@ function read_vars() {
 }
 
 function start_measurement() {
+    # Para start_measurement necesitamos LABEL, APPROACH, METHOD y TOOL_ARGS
+    APPROACH="${3:-}"
+    METHOD="${4:-}"
+    shift 4
+    TOOL_ARGS=("$@")
+
     echo "[DEBUG] Starting start_measurement..." >&2
 
     mkdir -p "$OUTPUT_DIR"
@@ -62,7 +65,7 @@ function start_measurement() {
     fi
 }
 
-function end_measurement_simple() {
+function end_measurement() {
     echo "[DEBUG] Starting end_measurement..." >&2
     read_vars
 
@@ -83,6 +86,9 @@ function end_measurement_simple() {
     kill "$pid" 2>/dev/null || true
     rm -f "$PID_FILE"
 
+    date "+%s%6N" >> "$TIMER_FILE_END"
+    echo "[INFO] Timer end recorded at $(tail -n1 "$TIMER_FILE_END")" >&2
+
     echo "[INFO] end_measurement finished" >&2
 }
 
@@ -100,7 +106,8 @@ function show_usage() {
 # --- Acción principal ---
 case "$ACTION" in
     start_measurement) start_measurement "$@" ;;
-    end_measurement) end_measurement "$@" ;;
+    end_measurement) end_measurement ;;
     baseline) baseline "$@" ;;
     *) show_usage ;;
 esac
+
