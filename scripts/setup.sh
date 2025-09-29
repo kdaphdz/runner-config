@@ -232,8 +232,6 @@ function upload_measurement() {
         end_time=$(tail -n 1 "$TIMER_FILE_END")
         response=$(curl -s -X POST "$SERVER_URL/reconstruct" \
             -F "session_id=$session_id" \
-            -F "timer_start=$start_time" \
-            -F "timer_end=$end_time" \
             "${upload_fields[@]}")
         echo "[DEBUG] Reconstruct response: $response"
     fi
