@@ -157,6 +157,19 @@ function end_measurement() {
 function upload_measurement() {
     local session_id=""
     
+    # --- Campos comunes para el upload ---
+    local upload_fields=(
+        -F "CI=$CI"
+        -F "RUN_ID=$RUN_ID"
+        -F "REF_NAME=$REF_NAME"
+        -F "REPOSITORY=$REPOSITORY"
+        -F "WORKFLOW_ID=$WORKFLOW_ID"
+        -F "WORKFLOW_NAME=$WORKFLOW_NAME"
+        -F "COMMIT_HASH=$COMMIT_HASH"
+        -F "METHOD=$METHOD"
+        -F "LABEL=$LABEL"
+    )
+
     # --- Upload baseline if exists ---
     if [[ -f "$PERF_BASELINE_FILE" ]]; then
         echo "[INFO] Uploading baseline measurement"
@@ -179,10 +192,7 @@ function upload_measurement() {
                 -F "chunk=@${chunk}" \
                 -F "chunk_name=$(basename "$chunk")" \
                 -F "type=baseline" \
-                -F "LABEL=$LABEL" \
-                -F "METHOD=$METHOD" \
-                -F "CI=$CI" \
-                -F "RUN_ID=$RUN_ID")
+                "${upload_fields[@]}")
             echo "[DEBUG] Server response: $resp"
             
             if [[ -z "$session_id" ]]; then
@@ -216,10 +226,7 @@ function upload_measurement() {
                 -F "chunk=@${chunk}" \
                 -F "chunk_name=$(basename "$chunk")" \
                 -F "type=main" \
-                -F "LABEL=$LABEL" \
-                -F "METHOD=$METHOD" \
-                -F "CI=$CI" \
-                -F "RUN_ID=$RUN_ID")
+                "${upload_fields[@]}")
             echo "[DEBUG] Server response: $resp"
             
             if [[ -z "$session_id" ]]; then
@@ -233,7 +240,7 @@ function upload_measurement() {
 
     # --- Reconstruct on server ---
     if [[ -n "$session_id" ]]; then
-        local start_time end_time response summary_md
+        local start_time end_time response
         start_time=$(tail -n 1 "$TIMER_FILE_START")
         end_time=$(tail -n 1 "$TIMER_FILE_END")
         echo "[DEBUG] start_time=$start_time, end_time=$end_time"
@@ -242,10 +249,7 @@ function upload_measurement() {
             -F "session_id=$session_id" \
             -F "timer_start=$start_time" \
             -F "timer_end=$end_time" \
-            -F "LABEL=$LABEL" \
-            -F "METHOD=$METHOD" \
-            -F "CI=$CI" \
-            -F "RUN_ID=$RUN_ID")
+            "${upload_fields[@]}")
         echo "[DEBUG] Reconstruct response: $response"
     fi
 }
