@@ -16,6 +16,7 @@ PERF_OUTPUT_FILE="$OUTPUT_DIR/perf-data.txt"
 PERF_BASELINE_FILE="$OUTPUT_DIR/perf-baseline.txt"
 
 ACTION="${1:-}"
+shift || true
 
 function add_var() {
     local key="$1"
@@ -28,27 +29,26 @@ function read_vars() {
 }
 
 function baseline_measurement() {
-    LABEL="${1:-}"
-    APPROACH="${2:-}"
-    METHOD="${3:-}"
+    local LABEL="$1"
+    local APPROACH="$2"
+    local METHOD="$3"
     shift 3
-    TOOL_ARGS=("$@")
+    local TOOL_ARGS=("$@")
 
-    echo "[DEBUG] Starting baseline_measurement..." >&2
     mkdir -p "$OUTPUT_DIR"
 
     if [[ "$METHOD" == "perf" ]]; then
         nohup bash "$(dirname "$0")/perf.sh" "$PERF_BASELINE_FILE" "${TOOL_ARGS[@]}" > "$OUTPUT_DIR/perf.baseline.log" 2>&1 &
         local pid=$!
         echo "$pid" > "$PID_FILE"
-        echo "[INFO] Baseline measurement started, PID=$pid" >&2
+        echo "[INFO] Baseline measurement started, PID=$pid"
         sleep 5
         pkill -P "$pid" || true
         kill "$pid" 2>/dev/null || true
         rm -f "$PID_FILE"
-        echo "[INFO] Baseline measurement finished" >&2
+        echo "[INFO] Baseline measurement finished"
     else
-        echo "[ERROR] Unsupported METHOD: $METHOD" >&2
+        echo "[ERROR] Unsupported METHOD: $METHOD"
         exit 1
     fi
 }
@@ -56,7 +56,7 @@ function baseline_measurement() {
 function start_measurement() {
     initialize_vars
 
-    BASELINE="false"
+    local BASELINE="false"
     if [[ "${1:-}" == baseline=* ]]; then
         BASELINE="${1#baseline=}"
         shift 1
@@ -68,12 +68,12 @@ function start_measurement() {
         show_usage
     fi
 
-    LABEL="$1"
-    APPROACH="$2"
-    METHOD="$3"
+    local LABEL="$1"
+    local APPROACH="$2"
+    local METHOD="$3"
     shift 3
+    local TOOL_ARGS=("$@")
 
-    TOOL_ARGS=("$@")
     mkdir -p "$OUTPUT_DIR"
 
     if [[ "$BASELINE" == "true" && ! -f "$PERF_BASELINE_FILE" ]]; then
@@ -92,25 +92,23 @@ function start_measurement() {
         local pid=$!
         echo "$pid" > "$PID_FILE"
         add_var 'PID' "$pid"
-        echo "[INFO] Measurement started, PID=$pid" >&2
+        echo "[INFO] Measurement started, PID=$pid"
     else
-        echo "[ERROR] Unsupported METHOD: $METHOD" >&2
+        echo "[ERROR] Unsupported METHOD: $METHOD"
         exit 1
     fi
 }
 
-
 function end_measurement() {
-    echo "[DEBUG] Starting end_measurement..." >&2
     read_vars
 
     if [[ -z "${LABEL:-}" ]]; then
-        echo "[ERROR] LABEL is not set" >&2
+        echo "[ERROR] LABEL is not set"
         exit 1
     fi
 
     if [[ ! -f "$PID_FILE" ]]; then
-        echo "[ERROR] PID file not found: $PID_FILE" >&2
+        echo "[ERROR] PID file not found: $PID_FILE"
         exit 1
     fi
 
@@ -123,15 +121,15 @@ function end_measurement() {
     date "+%s%6N" >> "$TIMER_FILE_END"
 
     if [[ ! -f "$PERF_OUTPUT_FILE" ]]; then
-        echo "[ERROR] Output file not found: $PERF_OUTPUT_FILE" >&2
+        echo "[ERROR] Output file not found: $PERF_OUTPUT_FILE"
         exit 1
     fi
 }
 
 function show_usage() {
-    echo "Usage: $0 start_measurement [baseline=true|false] LABEL APPROACH METHOD [TOOL_ARGS ...]" >&2
-    echo "       $0 end_measurement" >&2
-    echo "       $0 baseline LABEL APPROACH METHOD [TOOL_ARGS ...]" >&2
+    echo "Usage: $0 start_measurement [baseline=true|false] LABEL APPROACH METHOD [TOOL_ARGS ...]"
+    echo "       $0 end_measurement"
+    echo "       $0 baseline LABEL APPROACH METHOD [TOOL_ARGS ...]"
     exit 1
 }
 
