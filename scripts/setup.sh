@@ -25,20 +25,28 @@ TOOL_ARGS=("$@")
 function start_measurement {
     echo "[DEBUG] Starting start_measurement..." >&2
 
+    # Preparar directorio de salida
     mkdir -p "$OUTPUT_DIR"
     date "+%s%6N" >> "$TIMER_FILE_START"
 
+    # Guardar variables
     add_var 'LABEL' "$LABEL"
     add_var 'METHOD' "$METHOD"
     add_var 'APPROACH' "$APPROACH"
 
     case "$METHOD" in
         perf)
-            # Pasar los argumentos tal cual a perf.sh
-            bash "$(dirname "$0")/perf.sh" "${TOOL_ARGS[@]}" < /dev/null 2>&1 &
+            local perf_log="$OUTPUT_DIR/perf.log"
+
+            # Lanzar perf.sh en background, redirigiendo salida a log
+            nohup bash "$(dirname "$0")/perf.sh" "${TOOL_ARGS[@]}" > "$perf_log" 2>&1 &
             local pid=$!
+
+            # Guardar PID en archivo y en vars.sh
             echo "$pid" > "$PID_FILE"
-            echo "[INFO] Measurement process started, PID=$pid" >&2
+            add_var 'PID' "$pid"
+
+            echo "[INFO] Measurement process started, PID=$pid, logging to $perf_log" >&2
             ;;
         *)
             echo "[ERROR] Unsupported METHOD: $METHOD" >&2
