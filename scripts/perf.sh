@@ -3,7 +3,7 @@ set -euo pipefail
 
 if [[ $# -lt 1 ]]; then
     echo "[ERROR] Missing output file argument"
-    echo "Usage: $0 <output_file> events=<event1,event2,...> interval=<ms>"
+    echo "[INFO] Usage: $0 <output_file> events=<event1,event2,...> interval=<ms>"
     exit 1
 fi
 
@@ -14,12 +14,13 @@ INTERVAL_MS=1000
 REQUESTED_EVENTS=()
 
 function show_usage() {
-    echo "Usage: $0 <output_file> events=<event1,event2,...> interval=<ms>"
+    echo "[INFO] Usage: $0 <output_file> events=<event1,event2,...> interval=<ms>"
     exit 1
 }
 
 function setup_output_dir() {
     mkdir -p "$(dirname "$OUTPUT_FILE")"
+    echo "[DEBUG] Output directory created: $(dirname "$OUTPUT_FILE")"
 }
 
 function parse_arguments() {
@@ -27,9 +28,11 @@ function parse_arguments() {
         case "$arg" in
             interval=*)
                 INTERVAL_MS="${arg#interval=}"
+                echo "[INFO] Interval set to $INTERVAL_MS ms"
                 ;;
             events=*)
                 IFS=',' read -r -a REQUESTED_EVENTS <<< "${arg#events=}"
+                echo "[INFO] Requested events: ${REQUESTED_EVENTS[*]}"
                 ;;
             *)
                 echo "[ERROR] Unknown argument: $arg"
@@ -37,6 +40,7 @@ function parse_arguments() {
                 ;;
         esac
     done
+
     if [[ ${#REQUESTED_EVENTS[@]} -eq 0 ]]; then
         echo "[ERROR] No events specified."
         show_usage
@@ -48,6 +52,8 @@ function check_perf_paranoid() {
     PERF_PARANOID=$(< /proc/sys/kernel/perf_event_paranoid)
     if [[ "$PERF_PARANOID" -gt 1 ]]; then
         echo "[WARNING] perf_event_paranoid is $PERF_PARANOID. You may need root privileges."
+    else
+        echo "[DEBUG] perf_event_paranoid is $PERF_PARANOID"
     fi
 }
 
@@ -72,10 +78,15 @@ function validate_events() {
     if (( ${#INVALID_EVENTS[@]} > 0 )); then
         echo "[WARNING] Ignoring unavailable events: ${INVALID_EVENTS[*]}"
     fi
+
+    echo "[INFO] Valid events to monitor: ${VALID_EVENTS[*]}"
 }
 
 function run_perf() {
+    echo "[INFO] Starting perf measurement..."
+    echo "[DEBUG] perf command: perf stat -a -I $INTERVAL_MS -e $(IFS=','; echo "${VALID_EVENTS[*]}")"
     LC_NUMERIC=C perf stat -a -I "$INTERVAL_MS" -e "$(IFS=','; echo "${VALID_EVENTS[*]}")" 2> "$OUTPUT_FILE"
+    echo "[INFO] Perf measurement completed. Output saved to $OUTPUT_FILE"
 }
 
 setup_output_dir
