@@ -6,7 +6,11 @@ var_file="/tmp/wattsci/vars.sh"
 function add_var() {
     local key="$1"
     local value="$2"
-    echo "${key}='${value}'" >> "$var_file"
+    if grep -q "^${key}=" "$var_file" 2>/dev/null; then
+        sed -i "s|^${key}=.*|${key}='${value}'|" "$var_file"
+    else
+        echo "${key}='${value}'" >> "$var_file"
+    fi
 }
 
 function read_vars() {
