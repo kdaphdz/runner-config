@@ -2,7 +2,6 @@
 set -euo pipefail
 
 source "$(dirname "$0")/vars.sh"
-read_vars
 
 function load_ci_vars {
     if [[ -n "${GITHUB_RUN_ID:-}" ]]; then
