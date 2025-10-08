@@ -1,16 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# ----------------------------------------------------------
-# refactor.sh - Send refactor request to GreencodeRefactor Server
-# ----------------------------------------------------------
-
 SCRIPT_DIR="$(dirname "$0")"
 source "$SCRIPT_DIR/vars.sh"
 initialize_vars
-
 source "$SCRIPT_DIR/ci_vars.sh"
 load_ci_vars
+read_vars
 
 # Check required arguments
 if [[ $# -lt 2 ]]; then
