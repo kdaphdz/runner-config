@@ -5,7 +5,7 @@ source "$(dirname "$0")/ci_vars.sh"
 load_ci_vars
 source "$(dirname "$0")/vars.sh"
 
-SERVER_URL="http://172.24.106.17:5000"
+SERVER_URL="http://172.24.106.23:5000"
 
 OUTPUT_DIR="/tmp/wattsci"
 PID_FILE="$OUTPUT_DIR/measurement.pid"
