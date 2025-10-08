@@ -15,7 +15,7 @@ load_ci_vars
 
 # Check required environment variables
 : "${REPOSITORY:?REPOSITORY must be set}"
-: "${BASE_BRANCH:?BASE_BRANCH must be set}"
+: "${REF_NAME:?REF_NAME must be set}"
 
 # Check required arguments
 if [[ $# -lt 2 ]]; then
@@ -35,7 +35,7 @@ echo "[INFO] Running $GCF_EXEC with transformers: $TRANSFORMERS"
 "$GCF_EXEC" "$TRANSFORMERS" \
     --output "$OUTPUT_DIR" \
     --repo "$REPOSITORY" \
-    --branch "$BASE_BRANCH"
+    --ref "$REF_NAME"
 
 if [[ $? -eq 0 ]]; then
     echo "[INFO] greencoderefactor completed successfully. Output in $OUTPUT_DIR"
@@ -43,4 +43,3 @@ else
     echo "[ERROR] greencoderefactor failed"
     exit 1
 fi
-
