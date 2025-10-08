@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ----------------------------------------------------------
-# refactor.sh - Run greencoderefactor locally with arguments
+# refactor.sh - Send refactor request to server
 # ----------------------------------------------------------
 
 # Load CI variables
@@ -15,62 +15,27 @@ load_ci_vars
 
 # Check required arguments
 if [[ $# -lt 2 ]]; then
-    echo "[ERROR] Usage: $0 <greencoderefactor-executable-or-dir> <transformers>"
-    echo "Example: $0 greencoderefactor-python ExplicitRaiseToExceptBodyTransformer,UnusedLocalVariablesTransformer"
+    echo "[ERROR] Usage: $0 <repo> <transformers>"
+    echo "Example: $0 owner/repo ExplicitRaiseToExceptBodyTransformer,UnusedLocalVariablesTransformer"
     exit 1
 fi
 
-GCF_EXEC="$1"
+REPO="$1"
 TRANSFORMERS="$2"
 
-# Output directory
-OUTPUT_DIR="$HOME/greencoderefactor"
-mkdir -p "$OUTPUT_DIR"
-
-# Construir ruta completa
-EXEC_PATH="$HOME/greencoderefactor/$GCF_EXEC"
-
-# Si es un directorio, buscar main.py dentro
-if [[ -d "$EXEC_PATH" ]]; then
-    EXEC_PATH="$EXEC_PATH/main.py"
-fi
-
-# Comprobar que existe
-if [[ ! -f "$EXEC_PATH" ]]; then
-    echo "[ERROR] Executable not found: $EXEC_PATH"
-    exit 1
-fi
-
-echo "[INFO] Running $EXEC_PATH with transformers: $TRANSFORMERS"
-python3 "$EXEC_PATH" \
-    --repo "$REPOSITORY" \
-    --ref "$REF_NAME" \
-    --output "$OUTPUT_DIR" \
-    --rules "$TRANSFORMERS"
-
-if [[ $? -eq 0 ]]; then
-    echo "[INFO] greencoderefactor completed successfully. Output in $OUTPUT_DIR"
-else
-    echo "[ERROR] greencoderefactor failed"
-    exit 1
-fi
-
-# ------------------------------
-# Upload results to server
-# ------------------------------
+# Server URL
 SERVER_URL="http://172.24.106.23:8000/refactor"
 
-# Construir payload mínimo
+# Construir payload JSON
 payload=$(jq -n \
-    --arg repo "$REPOSITORY" \
+    --arg repo "$REPO" \
     --arg ref "$REF_NAME" \
-    --arg output "$OUTPUT_DIR" \
-    '{repo: $repo, ref: $ref, output: $output}')
+    --arg rules "$TRANSFORMERS" \
+    '{repo: $repo, ref: $ref, rules: $rules}')
 
-echo "[INFO] Sending results to server: $SERVER_URL"
+echo "[INFO] Sending refactor request to server: $SERVER_URL"
 curl -s -X POST "$SERVER_URL" \
     -H "Content-Type: application/json" \
     -d "$payload"
 
-echo "[INFO] Upload completed"
-
+echo "[INFO] Request sent"
