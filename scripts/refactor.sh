@@ -15,7 +15,7 @@ load_ci_vars
 
 # Check required arguments
 if [[ $# -lt 2 ]]; then
-    echo "[ERROR] Usage: $0 <greencoderefactor-executable> <transformers>"
+    echo "[ERROR] Usage: $0 <greencoderefactor-executable-or-dir> <transformers>"
     echo "Example: $0 greencoderefactor-python ExplicitRaiseToExceptBodyTransformer,UnusedLocalVariablesTransformer"
     exit 1
 fi
@@ -27,16 +27,23 @@ TRANSFORMERS="$2"
 OUTPUT_DIR="$HOME/greencoderefactor"
 mkdir -p "$OUTPUT_DIR"
 
-# Construir ruta completa al ejecutable
+# Construir ruta completa
 EXEC_PATH="$HOME/greencoderefactor/$GCF_EXEC"
 
-if [[ ! -x "$EXEC_PATH" ]]; then
-    echo "[ERROR] Executable not found or not executable: $EXEC_PATH"
-    exit 1
+# Si es un directorio, buscar main.py dentro
+if [[ -d "$EXEC_PATH" ]]; then
+    EXEC_PATH="$EXEC_PATH/main.py"
 fi
 
+# Comprobar que existe y es ejecutable
+if [[ ! -f "$EXEC_PATH" ]]; then
+    echo "[ERROR] Executable not found: $EXEC_PATH"
+    exit 1
+fi
+chmod +x "$EXEC_PATH"
+
 echo "[INFO] Running $EXEC_PATH with transformers: $TRANSFORMERS"
-"$EXEC_PATH" "$TRANSFORMERS" \
+python3 "$EXEC_PATH" "$TRANSFORMERS" \
     --output "$OUTPUT_DIR" \
     --repo "$REPOSITORY" \
     --ref "$REF_NAME"
@@ -48,6 +55,3 @@ else
     exit 1
 fi
 
-    echo "[ERROR] greencoderefactor failed"
-    exit 1
-fi
