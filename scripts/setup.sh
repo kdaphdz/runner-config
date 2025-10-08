@@ -2,9 +2,7 @@
 set -euo pipefail
 
 source "$(dirname "$0")/vars.sh"
-initialize_vars
 source "$(dirname "$0")/ci_vars.sh"
-load_ci_vars
 
 SERVER_URL="http://172.24.106.23:5000"
 
@@ -101,7 +99,8 @@ function baseline_measurement() {
 
 function start_measurement() {
     initialize_vars
-
+    load_ci_vars
+    
     local BASELINE="false"
     if [[ "${1:-}" == baseline=* ]]; then
         BASELINE="${1#baseline=}"
