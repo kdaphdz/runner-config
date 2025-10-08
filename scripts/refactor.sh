@@ -15,6 +15,7 @@ read_vars
 MODULE_NAME="$1"
 TRANSFORMERS="$2"
 
+# Convertimos la lista de reglas a JSON
 IFS=',' read -ra RULES_ARRAY <<< "$TRANSFORMERS"
 RULES_JSON="["
 for rule in "${RULES_ARRAY[@]}"; do
@@ -22,11 +23,17 @@ for rule in "${RULES_ARRAY[@]}"; do
 done
 RULES_JSON="${RULES_JSON%,}]"
 
+# Construimos el payload con todas las variables CI tal como están
 payload=$(cat <<EOF
 {
   "module": "$MODULE_NAME",
-  "repo": "$REPOSITORY",
-  "ref": "$REF_NAME",
+  "CI": "$CI",
+  "RUN_ID": "$RUN_ID",
+  "REF_NAME": "$REF_NAME",
+  "REPOSITORY": "$REPOSITORY",
+  "WORKFLOW_ID": "$WORKFLOW_ID",
+  "WORKFLOW_NAME": "$WORKFLOW_NAME",
+  "COMMIT_HASH": "$COMMIT_HASH",
   "rules": ${RULES_JSON}
 }
 EOF
