@@ -27,8 +27,16 @@ TRANSFORMERS="$2"
 OUTPUT_DIR="$HOME/greencoderefactor"
 mkdir -p "$OUTPUT_DIR"
 
-echo "[INFO] Running $GCF_EXEC with transformers: $TRANSFORMERS"
-"$GCF_EXEC" "$TRANSFORMERS" \
+# Construir ruta completa al ejecutable
+EXEC_PATH="$HOME/greencoderefactor/$GCF_EXEC"
+
+if [[ ! -x "$EXEC_PATH" ]]; then
+    echo "[ERROR] Executable not found or not executable: $EXEC_PATH"
+    exit 1
+fi
+
+echo "[INFO] Running $EXEC_PATH with transformers: $TRANSFORMERS"
+"$EXEC_PATH" "$TRANSFORMERS" \
     --output "$OUTPUT_DIR" \
     --repo "$REPOSITORY" \
     --ref "$REF_NAME"
@@ -36,6 +44,10 @@ echo "[INFO] Running $GCF_EXEC with transformers: $TRANSFORMERS"
 if [[ $? -eq 0 ]]; then
     echo "[INFO] greencoderefactor completed successfully. Output in $OUTPUT_DIR"
 else
+    echo "[ERROR] greencoderefactor failed"
+    exit 1
+fi
+
     echo "[ERROR] greencoderefactor failed"
     exit 1
 fi
