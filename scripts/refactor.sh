@@ -13,10 +13,6 @@ initialize_vars
 source "$SCRIPT_DIR/ci_vars.sh"
 load_ci_vars
 
-# Check required environment variables
-: "${REPOSITORY:?REPOSITORY must be set}"
-: "${REF_NAME:?REF_NAME must be set}"
-
 # Check required arguments
 if [[ $# -lt 2 ]]; then
     echo "[ERROR] Usage: $0 <greencoderefactor-executable> <transformers>"
