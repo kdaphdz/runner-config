@@ -18,7 +18,7 @@ fi
 MODULE_NAME="$1"
 TRANSFORMERS="$2"
 
-SERVER_URL="http://172.24.106.23:8000/refactor"
+SERVER_URL="http://172.24.106.23:8000/"
 OUTPUT_DIR="$HOME/greencoderefactor/output"
 
 # Create output directory if needed
