@@ -26,12 +26,8 @@ TRANSFORMERS="$2"
 # Server URL
 SERVER_URL="http://172.24.106.23:8000/refactor"
 
-# Construir payload JSON
-payload=$(jq -n \
-    --arg repo "$REPO" \
-    --arg ref "$REF_NAME" \
-    --arg rules "$TRANSFORMERS" \
-    '{repo: $repo, ref: $ref, rules: $rules}')
+# Construir payload JSON manualmente
+payload="{\"repo\": \"${REPO}\", \"ref\": \"${REF_NAME}\", \"rules\": \"${TRANSFORMERS}\"}"
 
 echo "[INFO] Sending refactor request to server: $SERVER_URL"
 curl -s -X POST "$SERVER_URL" \
