@@ -100,6 +100,7 @@ function baseline_measurement() {
 function start_measurement() {
     initialize_vars
     load_ci_vars
+    read_vars
     
     local BASELINE="false"
     if [[ "${1:-}" == baseline=* ]]; then
