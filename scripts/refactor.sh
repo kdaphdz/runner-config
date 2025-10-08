@@ -39,8 +39,8 @@ RULES_JSON="${RULES_JSON%,}]"
 # Build JSON payload
 payload=$(cat <<EOF
 {
-  "repo": "${REPOSITORY}",
-  "ref": "${REF_NAME}",
+  "repo": "$REPOSITORY",
+  "ref": "$REF_NAME",
   "output": "${OUTPUT_DIR}",
   "rules": ${RULES_JSON}
 }
