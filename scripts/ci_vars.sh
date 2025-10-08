@@ -53,7 +53,7 @@ function load_ci_vars {
         add_var 'CI' "AzureDevOps"
         add_var 'RUN_ID' "${BUILD_BUILDID}"
         add_var 'REF_NAME' "${BUILD_SOURCEBRANCHNAME:-unknown}"
-        add_var 'REPOSITORY' "${BUILD_REPOSITORY_NAME}"
+        add_var 'REPOSITORY' "${BUILD_REPOSITORY_URI}"
         add_var 'WORKFLOW_ID' "${BUILD_BUILDID}"
         add_var 'WORKFLOW_NAME' "${BUILD_DEFINITIONNAME:-$BUILD_BUILDID}"
         add_var 'COMMIT_HASH' "${BUILD_SOURCEVERSION}"
