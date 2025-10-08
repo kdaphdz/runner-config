@@ -21,7 +21,5 @@ function read_vars() {
 
 function initialize_vars() {
     mkdir -p "$(dirname "$var_file")"
-    if [[ ! -f "$var_file" ]]; then
-        : > "$var_file"
-    fi
+    : > "$var_file"
 }
