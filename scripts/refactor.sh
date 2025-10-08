@@ -35,18 +35,18 @@ if [[ -d "$EXEC_PATH" ]]; then
     EXEC_PATH="$EXEC_PATH/main.py"
 fi
 
-# Comprobar que existe y es ejecutable
+# Comprobar que existe
 if [[ ! -f "$EXEC_PATH" ]]; then
     echo "[ERROR] Executable not found: $EXEC_PATH"
     exit 1
 fi
-chmod +x "$EXEC_PATH"
 
 echo "[INFO] Running $EXEC_PATH with transformers: $TRANSFORMERS"
-python3 "$EXEC_PATH" "$TRANSFORMERS" \
-    --output "$OUTPUT_DIR" \
+python3 "$EXEC_PATH" \
     --repo "$REPOSITORY" \
-    --ref "$REF_NAME"
+    --ref "$REF_NAME" \
+    --output "$OUTPUT_DIR" \
+    --rules "$TRANSFORMERS"
 
 if [[ $? -eq 0 ]]; then
     echo "[INFO] greencoderefactor completed successfully. Output in $OUTPUT_DIR"
@@ -54,4 +54,23 @@ else
     echo "[ERROR] greencoderefactor failed"
     exit 1
 fi
+
+# ------------------------------
+# Upload results to server
+# ------------------------------
+SERVER_URL="http://172.24.106.23:8000/refactor"
+
+# Construir payload mínimo
+payload=$(jq -n \
+    --arg repo "$REPOSITORY" \
+    --arg ref "$REF_NAME" \
+    --arg output "$OUTPUT_DIR" \
+    '{repo: $repo, ref: $ref, output: $output}')
+
+echo "[INFO] Sending results to server: $SERVER_URL"
+curl -s -X POST "$SERVER_URL" \
+    -H "Content-Type: application/json" \
+    -d "$payload"
+
+echo "[INFO] Upload completed"
 
