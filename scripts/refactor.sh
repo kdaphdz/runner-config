@@ -15,7 +15,7 @@ if [[ $# -lt 2 ]]; then
     exit 1
 fi
 
-MODULE_NAME="$1"
+MODULE_NAME="$1"       # greencoderefactor-python o greencoderefactor-java
 TRANSFORMERS="$2"
 
 SERVER_URL="http://172.24.106.23:8000/"
@@ -32,9 +32,10 @@ for rule in "${RULES_ARRAY[@]}"; do
 done
 RULES_JSON="${RULES_JSON%,}]"
 
-# Build JSON payload
+# Build JSON payload including the module
 payload=$(cat <<EOF
 {
+  "module": "$MODULE_NAME",
   "repo": "$REPOSITORY",
   "ref": "$REF_NAME",
   "output": "${OUTPUT_DIR}",
@@ -53,4 +54,5 @@ response=$(curl -s -X POST "$SERVER_URL" \
 
 echo "[INFO] Server response:"
 echo "$response"
+
 
