@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-source "$(dirname "$0")/ci_vars.sh"
-load_ci_vars
 source "$(dirname "$0")/vars.sh"
 initialize_vars
+source "$(dirname "$0")/ci_vars.sh"
+load_ci_vars
 
 SERVER_URL="http://172.24.106.23:5000"
 
