@@ -14,10 +14,10 @@ source "$SCRIPT_DIR/ci_vars.sh"
 load_ci_vars
 
 # Check required environment variables
-: "${TOKEN:?TOKEN must be set}"
 : "${REPOSITORY:?REPOSITORY must be set}"
 : "${BASE_BRANCH:?BASE_BRANCH must be set}"
 
+# Check required arguments
 if [[ $# -lt 2 ]]; then
     echo "[ERROR] Usage: $0 <greencoderefactor-executable> <transformers>"
     echo "Example: $0 greencoderefactor-python ExplicitRaiseToExceptBodyTransformer,UnusedLocalVariablesTransformer"
@@ -27,6 +27,7 @@ fi
 GCF_EXEC="$1"
 TRANSFORMERS="$2"
 
+# Output directory
 OUTPUT_DIR="$HOME/greencoderefactor"
 mkdir -p "$OUTPUT_DIR"
 
@@ -34,8 +35,7 @@ echo "[INFO] Running $GCF_EXEC with transformers: $TRANSFORMERS"
 "$GCF_EXEC" "$TRANSFORMERS" \
     --output "$OUTPUT_DIR" \
     --repo "$REPOSITORY" \
-    --branch "$BASE_BRANCH" \
-    --token "$TOKEN"
+    --branch "$BASE_BRANCH"
 
 if [[ $? -eq 0 ]]; then
     echo "[INFO] greencoderefactor completed successfully. Output in $OUTPUT_DIR"
@@ -43,3 +43,4 @@ else
     echo "[ERROR] greencoderefactor failed"
     exit 1
 fi
+
