@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-SERVER_URL="http://172.24.106.23:8000/"
+SERVER_URL="http://172.24.106.15:8000/"
 
 SCRIPT_DIR="$(dirname "$0")"
 
