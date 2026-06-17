@@ -31,8 +31,7 @@ function run_method_instance() {
     case "$METHOD" in
         perf)
             echo "[INFO] Launching perf, output=$OUTPUT_FILE"
-            local log_file="$OUTPUT_DIR/$(basename "$OUTPUT_FILE")"          
-            nohup bash "$(dirname "$0")/perf.sh" "$OUTPUT_FILE" "${TOOL_ARGS[@]}" \ "$log_file" 2>&1 &
+            nohup bash "$(dirname "$0")/perf.sh" "$OUTPUT_FILE" "${TOOL_ARGS[@]}" > "$OUTPUT_DIR/$(basename "$OUTPUT_FILE").log" 2>&1 &
             local pid=$!
             echo "$pid" > "$PID_FILE"
             echo "[INFO] $METHOD measurement started, PID=$pid"
