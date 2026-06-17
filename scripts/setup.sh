@@ -4,7 +4,7 @@ set -euo pipefail
 source "$(dirname "$0")/vars.sh"
 source "$(dirname "$0")/ci_vars.sh"
 
-SERVER_URL="http://172.24.106.15:5000"
+SERVER_URL="http://145.126.110.253:5000"
 
 OUTPUT_DIR="/tmp/wattsci"
 PID_FILE="$OUTPUT_DIR/measurement.pid"
@@ -31,7 +31,8 @@ function run_method_instance() {
     case "$METHOD" in
         perf)
             echo "[INFO] Launching perf, output=$OUTPUT_FILE"
-            nohup bash "$(dirname "$0")/perf.sh" "$OUTPUT_FILE" "${TOOL_ARGS[@]}" > "$OUTPUT_DIR/$(basename "$OUTPUT_FILE").log" 2>&1 &
+            local log_file="$OUTPUT_DIR/$(basename "$OUTPUT_FILE").log"          
+            nohup bash "$(dirname "$0")/perf.sh" "$OUTPUT_FILE" "${TOOL_ARGS[@]}" \ "$log_file" 2>&1 &
             local pid=$!
             echo "$pid" > "$PID_FILE"
             echo "[INFO] $METHOD measurement started, PID=$pid"
