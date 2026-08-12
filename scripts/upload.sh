@@ -8,8 +8,9 @@ SERVER_URL="http://192.168.1.54:8000"
 
 OUTPUT_DIR="/tmp/wattsci"
 
-JAVA_FILE="${PYPEN_EXECUTION_FILE:-PYPEN_EXECUTION.txt}"
-PERF_FILE="${PERF_OUTPUT_FILE:-/tmp/wattsci/perf-energy-intervals.txt}"
+JAVA_FILE="/home/carlos/PYPEN_EXECUTION.txt"
+
+PERF_FILE="/tmp/wattsci/perf-energy-intervals.txt"
 
 initialize_vars
 load_ci_vars
@@ -41,7 +42,7 @@ RESPONSE=$(curl \
     -F "REPOSITORY=${REPOSITORY:-}" \
     -F "WORKFLOW_ID=${WORKFLOW_ID:-}" \
     -F "WORKFLOW_NAME=${WORKFLOW_NAME:-}" \
-    -F "COMMIT_HASH=${COMMIT_HASH:-}" \
+    -F "COMMIT_HASH=${COMMIT_HASH:-}"
 )
 
 echo "$RESPONSE"
