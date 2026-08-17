@@ -13,6 +13,19 @@ initialize_vars
 load_ci_vars
 read_vars
 
+echo "================ VARIABLES ================"
+echo "CI              = '${CI:-}'"
+echo "RUN_ID          = '${RUN_ID:-}'"
+echo "REF_NAME        = '${REF_NAME:-}'"
+echo "REPOSITORY      = '${REPOSITORY:-}'"
+echo "WORKFLOW_ID     = '${WORKFLOW_ID:-}'"
+echo "WORKFLOW_NAME   = '${WORKFLOW_NAME:-}'"
+echo "COMMIT_HASH     = '${COMMIT_HASH:-}'"
+echo "JAVA_FILE       = '$JAVA_FILE'"
+echo "PERF_FILE       = '$PERF_FILE'"
+echo "PYTHON_SCRIPT   = '$PYTHON_SCRIPT'"
+echo "==========================================="
+
 if [[ ! -f "$JAVA_FILE" ]]; then
     echo "[ERROR] File not found: $JAVA_FILE"
     exit 1
