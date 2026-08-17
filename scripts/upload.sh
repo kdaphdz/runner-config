@@ -4,7 +4,7 @@ set -euo pipefail
 source "$(dirname "$0")/vars.sh"
 source "$(dirname "$0")/ci_vars.sh"
 
-SERVER_URL="http://192.168.1.54:8000"
+SERVER_URL="http://145.126.109.18:8000"
 
 OUTPUT_DIR="/tmp/wattsci"
 

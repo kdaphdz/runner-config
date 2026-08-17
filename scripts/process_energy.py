@@ -14,7 +14,7 @@ import requests
 # CONFIGURATION
 # ============================================================
 
-SERVER_URL = "http://192.168.1.54:8000/result"
+SERVER_URL = "http://145.126.109.18:8000/result"
 
 JAVA_FILE = Path(
     "/home/carlos/PYPEN_EXECUTION.txt"
