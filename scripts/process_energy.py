@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
+import argparse
 import json
-import os
-import sys
 import re
+import sys
 from pathlib import Path
 from datetime import datetime
 
@@ -16,13 +16,71 @@ import requests
 
 SERVER_URL = "http://145.126.109.18:8000/result"
 
-JAVA_FILE = Path(
+DEFAULT_JAVA_FILE = Path(
     "/home/carlos/PYPEN_EXECUTION.txt"
 )
 
-PERF_FILE = Path(
+DEFAULT_PERF_FILE = Path(
     "/tmp/wattsci/perf-energy-intervals.txt"
 )
+
+
+# ============================================================
+# ARGUMENTS
+# ============================================================
+
+def parse_arguments():
+
+    parser = argparse.ArgumentParser(
+        description="Process Java energy measurements"
+    )
+
+    parser.add_argument(
+        "--java-file",
+        default=str(DEFAULT_JAVA_FILE)
+    )
+
+    parser.add_argument(
+        "--perf-file",
+        default=str(DEFAULT_PERF_FILE)
+    )
+
+    parser.add_argument(
+        "--ci",
+        default=""
+    )
+
+    parser.add_argument(
+        "--run-id",
+        default=""
+    )
+
+    parser.add_argument(
+        "--ref-name",
+        default=""
+    )
+
+    parser.add_argument(
+        "--repository",
+        default=""
+    )
+
+    parser.add_argument(
+        "--workflow-id",
+        default=""
+    )
+
+    parser.add_argument(
+        "--workflow-name",
+        default=""
+    )
+
+    parser.add_argument(
+        "--commit-hash",
+        default=""
+    )
+
+    return parser.parse_args()
 
 
 # ============================================================
@@ -1034,6 +1092,16 @@ def send_result(
 
 def main():
 
+    args = parse_arguments()
+
+    java_file = Path(
+        args.java_file
+    )
+
+    perf_file = Path(
+        args.perf_file
+    )
+
     print(
         "========================================"
     )
@@ -1046,33 +1114,73 @@ def main():
         "========================================"
     )
 
+    print(
+        f"[INFO] Java file: {java_file}"
+    )
+
+    print(
+        f"[INFO] Perf file: {perf_file}"
+    )
+
+    # --------------------------------------------------------
+    # PRINT RECEIVED METADATA
+    # --------------------------------------------------------
+
+    print("")
+    print("========================================")
+    print("      EXECUTION METADATA")
+    print("========================================")
+
+    print(
+        f"CI              = '{args.ci}'"
+    )
+
+    print(
+        f"RUN_ID          = '{args.run_id}'"
+    )
+
+    print(
+        f"REF_NAME        = '{args.ref_name}'"
+    )
+
+    print(
+        f"REPOSITORY      = '{args.repository}'"
+    )
+
+    print(
+        f"WORKFLOW_ID     = '{args.workflow_id}'"
+    )
+
+    print(
+        f"WORKFLOW_NAME   = '{args.workflow_name}'"
+    )
+
+    print(
+        f"COMMIT_HASH     = '{args.commit_hash}'"
+    )
+
+    print("========================================")
+    print("")
+
     # --------------------------------------------------------
     # CHECK FILES
     # --------------------------------------------------------
 
-    if not JAVA_FILE.exists():
+    if not java_file.exists():
 
         print(
-            f"[ERROR] File not found: {JAVA_FILE}"
+            f"[ERROR] File not found: {java_file}"
         )
 
         sys.exit(1)
 
-    if not PERF_FILE.exists():
+    if not perf_file.exists():
 
         print(
-            f"[ERROR] File not found: {PERF_FILE}"
+            f"[ERROR] File not found: {perf_file}"
         )
 
         sys.exit(1)
-
-    print(
-        f"[INFO] Java file: {JAVA_FILE}"
-    )
-
-    print(
-        f"[INFO] Perf file: {PERF_FILE}"
-    )
 
     # --------------------------------------------------------
     # PROCESS
@@ -1081,8 +1189,8 @@ def main():
     try:
 
         result = process_files(
-            JAVA_FILE,
-            PERF_FILE
+            java_file,
+            perf_file
         )
 
         # ----------------------------------------------------
@@ -1092,50 +1200,29 @@ def main():
         result["execution"] = {
 
             "CI":
-                os.getenv(
-                    "CI",
-                    ""
-                ),
+                args.ci,
 
             "RUN_ID":
-                os.getenv(
-                    "RUN_ID",
-                    ""
-                ),
+                args.run_id,
 
             "REF_NAME":
-                os.getenv(
-                    "REF_NAME",
-                    ""
-                ),
+                args.ref_name,
 
             "REPOSITORY":
-                os.getenv(
-                    "REPOSITORY",
-                    ""
-                ),
+                args.repository,
 
             "WORKFLOW_ID":
-                os.getenv(
-                    "WORKFLOW_ID",
-                    ""
-                ),
+                args.workflow_id,
 
             "WORKFLOW_NAME":
-                os.getenv(
-                    "WORKFLOW_NAME",
-                    ""
-                ),
+                args.workflow_name,
 
             "COMMIT_HASH":
-                os.getenv(
-                    "COMMIT_HASH",
-                    ""
-                )
+                args.commit_hash
         }
 
         # ----------------------------------------------------
-        # SEND JSON ONLY
+        # SEND RESULT
         # ----------------------------------------------------
 
         server_response = send_result(
