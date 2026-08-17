@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-source "/home/carlos/vars.sh"
-source "/home/carlos/ci_vars.sh"
+source "$(dirname "$0")/vars.sh"
+source "$(dirname "$0")/ci_vars.sh"
 
 JAVA_FILE="/home/carlos/PYPEN_EXECUTION.txt"
 PERF_FILE="/tmp/wattsci/perf-energy-intervals.txt"
